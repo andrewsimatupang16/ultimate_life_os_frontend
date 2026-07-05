@@ -1,5 +1,5 @@
 import api from './axios';
-import type { AccountabilityConnection, UserPublicProfile, Goal, Habit, Task, Wallet, SubGoal, Transaction, PartnerSharingScope, Budget, BillReminder } from '@/types';
+import type { AccountabilityConnection, UserPublicProfile, Goal, Habit, Task, Wallet, SubGoal, Transaction, PartnerSharingScope, Budget, BillReminder, DashboardSummary } from '@/types';
 
 export const partnerApi = {
   getSharingScope: async (): Promise<PartnerSharingScope> => {
@@ -61,6 +61,12 @@ export const partnerApi = {
   // View partner tasks
   getPartnerTasks: async (partnerId: string): Promise<Task[]> => {
     const { data } = await api.get<Task[]>(`/partner/${partnerId}/tasks`);
+    return data;
+  },
+
+  // View partner analytics dashboard
+  getPartnerAnalytics: async (partnerId: string): Promise<DashboardSummary> => {
+    const { data } = await api.get<DashboardSummary>(`/partner/${partnerId}/analytics/dashboard`);
     return data;
   },
 

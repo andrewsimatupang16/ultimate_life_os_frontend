@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
-import { CheckCircle2, Circle, Lock, Pencil, Plus, Shield, Target, Trash2, Zap } from 'lucide-react';
+import { CheckCircle2, Circle, Lock, Pencil, Plus, Shield, Trash2, Zap } from 'lucide-react';
 import LoadingState from '@/components/LoadingState';
 import EmptyState from '@/components/EmptyState';
 import ErrorState from '@/components/ErrorState';
@@ -36,13 +36,13 @@ type TaskVisibilityFilter = 'all' | 'public' | 'private';
 type TaskScheduleFilter = 'all' | 'daily' | 'one_time';
 
 const WEEKDAY_OPTIONS = [
+  { value: 6, short: 'Min', label: 'Minggu' },
   { value: 0, short: 'Sen', label: 'Senin' },
   { value: 1, short: 'Sel', label: 'Selasa' },
   { value: 2, short: 'Rab', label: 'Rabu' },
   { value: 3, short: 'Kam', label: 'Kamis' },
   { value: 4, short: 'Jum', label: 'Jumat' },
   { value: 5, short: 'Sab', label: 'Sabtu' },
-  { value: 6, short: 'Min', label: 'Minggu' },
 ];
 
 function getDifficultyColor(difficulty: DifficultyEnum) {
@@ -176,7 +176,6 @@ export default function TasksTab() {
   const [difficultyFilter, setDifficultyFilter] = useState<'all' | DifficultyEnum>('all');
   const [visibilityFilter, setVisibilityFilter] = useState<TaskVisibilityFilter>('all');
   const [scheduleFilter, setScheduleFilter] = useState<TaskScheduleFilter>('all');
-  const [focusOnly, setFocusOnly] = useState(true);
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
   const [dragOverPriority, setDragOverPriority] = useState<PriorityEnum | null>(null);
 
@@ -223,20 +222,6 @@ export default function TasksTab() {
     () => subGoalOptions.filter((subGoal) => !subGoal.is_locked && !subGoal.is_completed),
     [subGoalOptions],
   );
-  const activeGoal = useMemo(() => {
-    return [...goals]
-      .filter((goal) => !goal.is_completed)
-      .sort((a, b) => {
-        const aTime = new Date(a.target_date || a.created_at).getTime();
-        const bTime = new Date(b.target_date || b.created_at).getTime();
-        return aTime - bTime;
-      })[0] ?? null;
-  }, [goals]);
-  const activeGoalSubGoalIds = useMemo(() => {
-    if (!activeGoal) return new Set<string>();
-    return new Set((activeGoal.sub_goals ?? []).map((subGoal) => subGoal.id));
-  }, [activeGoal]);
-
   const getSubGoalLabel = useCallback((subGoalId: string | null) => {
     if (!subGoalId) return null;
     const subGoal = subGoalOptions.find((item) => item.id === subGoalId);
@@ -248,20 +233,14 @@ export default function TasksTab() {
     [tasks],
   );
 
-  const weeklyTaskSchedule = useMemo(() => {
-    const recurringTasks = tasks.filter((task) => task.is_daily && !task.deleted_at);
-    return WEEKDAY_OPTIONS.map((day) => ({
-      ...day,
-      tasks: recurringTasks.filter((task) => {
-        const days = getTaskRecurrenceDays(task);
-        return days.length === 0 || days.includes(day.value);
-      }),
-    }));
-  }, [tasks]);
+  const weeklyRecurringTasks = useMemo(
+    () => tasks.filter((task) => task.is_daily && !task.deleted_at),
+    [tasks],
+  );
 
   const recurringTaskCount = useMemo(
-    () => tasks.filter((task) => task.is_daily && !task.deleted_at).length,
-    [tasks],
+    () => weeklyRecurringTasks.length,
+    [weeklyRecurringTasks],
   );
 
   const filteredTasks = useMemo(() => tasks.filter((task) => {
@@ -285,13 +264,8 @@ export default function TasksTab() {
       || (scheduleFilter === 'one_time' && !task.is_daily);
     const matchesToday = taskRunsToday(task);
 
-    const matchesFocus = !focusOnly
-      || !activeGoal
-      || !task.sub_goal_id
-      || activeGoalSubGoalIds.has(task.sub_goal_id);
-
-    return matchesSearch && matchesStatus && matchesDifficulty && matchesVisibility && matchesSchedule && matchesToday && matchesFocus;
-  }), [activeGoal, activeGoalSubGoalIds, difficultyFilter, focusOnly, getSubGoalLabel, goals, scheduleFilter, statusFilter, taskSearch, tasks, visibilityFilter]);
+    return matchesSearch && matchesStatus && matchesDifficulty && matchesVisibility && matchesSchedule && matchesToday;
+  }), [difficultyFilter, getSubGoalLabel, goals, scheduleFilter, statusFilter, taskSearch, tasks, visibilityFilter]);
 
   const priorityGroups = useMemo(() => {
     const openTasks = filteredTasks.filter((task) => !task.is_completed && !isTaskLocked(task, goals));
@@ -448,34 +422,40 @@ export default function TasksTab() {
   return (
     <>
       <div className="space-y-4">
-        <Card className="border-slate-200 bg-[#F8FAFC]">
-          <CardContent className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-600">Mode fokus</p>
-              <h3 className="mt-1 text-lg font-bold text-slate-900">
-                {activeGoal ? activeGoal.title : 'Belum ada goal aktif'}
-              </h3>
-              <p className="mt-1 text-sm leading-6 text-slate-500">
-                {activeGoal
-                  ? 'Default-nya daftar task dipersempit ke goal aktif supaya kamu tidak lompat-lompat tujuan.'
-                  : 'Buat goal dan target turunan agar task harian punya arah yang jelas.'}
-              </p>
-            </div>
-            <div className="flex shrink-0 flex-wrap items-center gap-3">
-              <div className="rounded-2xl border border-slate-200 bg-white/70 px-3 py-2">
-                <p className="text-xs text-slate-500">Task tampil</p>
-                <p className="text-lg font-bold text-slate-800">{filteredTasks.length}</p>
+        <Card className="overflow-hidden rounded-xl border-slate-200 bg-white/90">
+          <CardContent className="grid gap-4 p-4 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-start">
+            <div className="flex items-start justify-between gap-3 lg:block">
+              <div className="min-w-0">
+                <h4 className="text-sm font-semibold text-slate-900">Jadwal Mingguan</h4>
+                <p className="mt-1 text-xs text-slate-500">
+                  {recurringTaskCount} tugas berulang tersimpan.
+                </p>
               </div>
-              <Button
-                type="button"
-                variant={focusOnly ? 'default' : 'outline'}
-                onClick={() => setFocusOnly((current) => !current)}
-                className={focusOnly ? 'bg-blue-600 hover:bg-blue-700' : 'bg-white/70'}
-              >
-                <Target className="mr-2 h-4 w-4" />
-                {focusOnly ? 'Fokus aktif' : 'Semua task'}
-              </Button>
+              <Badge variant="outline" className="shrink-0 border-blue-200 bg-blue-50 text-blue-700 lg:mt-3">
+                {recurringTaskCount}
+              </Badge>
             </div>
+            {recurringTaskCount > 0 ? (
+              <div className="max-h-28 overflow-y-auto pr-1">
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                  {weeklyRecurringTasks.map((task) => (
+                    <span
+                      key={task.id}
+                      className="truncate rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700"
+                      title={task.title}
+                    >
+                      {task.title}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/70 px-3 py-4">
+                <p className="text-xs leading-5 text-slate-500">
+                  Belum ada tugas berulang. Aktifkan tugas berulang saat membuat atau mengedit task.
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -824,56 +804,6 @@ export default function TasksTab() {
             </SelectContent>
           </Select>
         </div>
-
-        {recurringTaskCount > 0 && (
-          <Card className="border-slate-200 bg-white/80">
-            <CardContent className="p-4">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <h4 className="text-sm font-semibold text-slate-800">Jadwal Mingguan</h4>
-                  <p className="text-xs text-slate-500">
-                    {recurringTaskCount} tugas berulang tersimpan. Board utama hanya menampilkan jadwal hari ini.
-                  </p>
-                </div>
-                <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
-                  Hari ini: {WEEKDAY_OPTIONS.find((day) => day.value === getTodayWeekday())?.label}
-                </Badge>
-              </div>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-7">
-                {weeklyTaskSchedule.map((day) => (
-                  <div
-                    key={day.value}
-                    className={`min-h-[86px] rounded-md border p-2 ${
-                      day.value === getTodayWeekday()
-                        ? 'border-blue-200 bg-blue-50/80'
-                        : 'border-slate-200 bg-slate-50/60'
-                    }`}
-                  >
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                      <span className="text-xs font-semibold text-slate-700">{day.short}</span>
-                      <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-slate-500">
-                        {day.tasks.length}
-                      </span>
-                    </div>
-                    <div className="space-y-1">
-                      {day.tasks.slice(0, 3).map((task) => (
-                        <p key={task.id} className="truncate rounded bg-white/80 px-2 py-1 text-xs text-slate-600" title={task.title}>
-                          {task.title}
-                        </p>
-                      ))}
-                      {day.tasks.length === 0 && (
-                        <p className="text-xs text-slate-400">Kosong</p>
-                      )}
-                      {day.tasks.length > 3 && (
-                        <p className="text-xs font-medium text-blue-600">+{day.tasks.length - 3} lainnya</p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         <div className="task-board">
           {[

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { partnerApi } from '@/api/partner';
 import { profileApi } from '@/api/profile';
 import { useAuth } from '@/context/useAuth';
-import type { AccountabilityConnection, BillReminder, Budget, Goal, Habit, PartnerSharingScope, PartnerSharingScopeItem, SubGoal, Task, Transaction, UserPublicProfile, Wallet } from '@/types';
+import type { AccountabilityConnection, BillReminder, Budget, DashboardSummary, Goal, Habit, PartnerSharingScope, PartnerSharingScopeItem, SubGoal, Task, Transaction, UserPublicProfile, Wallet } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -103,6 +103,7 @@ type PartnerDataView = {
   profile?: UserPublicProfile;
   productivity?: PartnerProductivityView;
   finance?: PartnerFinanceView;
+  analytics?: DashboardSummary;
 };
 
 function clampPercent(value: number | null | undefined) {
@@ -130,6 +131,14 @@ function getBudgetUsageRate(budget: Budget) {
 
 function getStandaloneTasks(tasks: Task[] | undefined) {
   return (tasks ?? []).filter((task) => !task.sub_goal_id);
+}
+
+function getPartnerChartMax(values: number[]) {
+  return Math.max(1, ...values.map((value) => Math.abs(value || 0)));
+}
+
+function getPartnerBarHeight(value: number, maxValue: number) {
+  return `${Math.max(4, (Math.abs(value || 0) / maxValue) * 100)}%`;
 }
 
 export default function Partner() {
@@ -586,6 +595,18 @@ function PartnerCard({
     }
   };
 
+  const viewAnalytics = async () => {
+    setLoading(true);
+    try {
+      const data = await partnerApi.getPartnerAnalytics(partner.id);
+      setPartnerData((prev) => ({ ...(prev ?? {}), analytics: data }));
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!viewOpen) return;
 
@@ -657,11 +678,13 @@ function PartnerCard({
             setViewTab(v);
             if (v === 'productivity' && !partnerData?.productivity) viewProductivity();
             if (v === 'finance' && !partnerData?.finance) viewFinance();
+            if (v === 'analytics' && !partnerData?.analytics) viewAnalytics();
           }}>
             <TabsList className="bg-white/60">
               <TabsTrigger value="profile" className="data-[state=active]:bg-blue-600">{t('Growth')}</TabsTrigger>
               <TabsTrigger value="productivity" className="data-[state=active]:bg-blue-600">{t('Produktivitas')}</TabsTrigger>
               <TabsTrigger value="finance" className="data-[state=active]:bg-blue-600">{t('Keuangan')}</TabsTrigger>
+              <TabsTrigger value="analytics" className="data-[state=active]:bg-blue-600">{t('Grafik')}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="profile" className="space-y-4">
@@ -712,6 +735,14 @@ function PartnerCard({
                 partnerData?.finance ? (
                   <PartnerFinancePanel finance={partnerData.finance} language={language} />
                 ) : <p className="text-slate-500">{t('Belum ada data yang bisa ditampilkan')}</p>
+              }
+            </TabsContent>
+
+            <TabsContent value="analytics">
+              {loading ? <p className="text-slate-500 text-center py-4">{t('Memuat grafik...')}</p> :
+                partnerData?.analytics ? (
+                  <PartnerAnalyticsPanel analytics={partnerData.analytics} language={language} />
+                ) : <p className="text-slate-500">{t('Belum ada grafik yang bisa ditampilkan')}</p>
               }
             </TabsContent>
           </Tabs>
@@ -981,6 +1012,93 @@ function PartnerFinancePanel({ finance, language }: { finance: PartnerFinanceVie
                   {bill.is_paid ? t('Sudah dibayar') : t('Belum dibayar')}
                 </Badge>
               </div>
+            </div>
+          ))
+        )}
+      </section>
+    </div>
+  );
+}
+
+function PartnerAnalyticsPanel({ analytics, language }: { analytics: DashboardSummary; language: 'id' | 'en' }) {
+  const { t } = useLanguage();
+  const taskRate = analytics.weekly_task_metrics?.completion_rate ?? 0;
+  const cashflowMax = getPartnerChartMax((analytics.weekly_cashflow ?? []).flatMap((item) => [item.income, item.expense]));
+  const taskMax = getPartnerChartMax((analytics.daily_task_trend ?? []).flatMap((item) => [item.total, item.completed]));
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <PartnerMiniStat label="Life score" value={`${Math.round(analytics.life_score || 0)}%`} />
+        <PartnerMiniStat label="Produktivitas" value={`${Math.round(analytics.productivity_score || 0)}%`} />
+        <PartnerMiniStat label="Keuangan" value={`${Math.round(analytics.finance_score || 0)}%`} />
+        <PartnerMiniStat label="Task selesai" value={`${Math.round(taskRate)}%`} />
+      </div>
+
+      <section className="rounded-xl bg-white/70 p-3">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h4 className="text-sm font-semibold text-slate-700">{t('Grafik Cashflow Mingguan')}</h4>
+          <span className="text-xs text-slate-500">
+            {formatPartnerCurrency(analytics.total_income_month)} / {formatPartnerCurrency(analytics.total_expense_month)}
+          </span>
+        </div>
+        <div className="flex h-44 items-end gap-2">
+          {(analytics.weekly_cashflow ?? []).map((item) => (
+            <div key={item.date} className="flex min-w-0 flex-1 flex-col items-center gap-1">
+              <div className="flex h-32 w-full items-end justify-center gap-1 rounded-lg bg-slate-50 px-1 pb-1">
+                <span className="w-2 rounded-t bg-emerald-500" style={{ height: getPartnerBarHeight(item.income, cashflowMax) }} title={`Income ${formatPartnerCurrency(item.income)}`} />
+                <span className="w-2 rounded-t bg-red-500" style={{ height: getPartnerBarHeight(item.expense, cashflowMax) }} title={`Expense ${formatPartnerCurrency(item.expense)}`} />
+              </div>
+              <span className="truncate text-[10px] text-slate-500">
+                {new Date(`${item.date}T12:00:00`).toLocaleDateString(language === 'en' ? 'en-US' : 'id-ID', { weekday: 'short' })}
+              </span>
+            </div>
+          ))}
+        </div>
+        <div className="mt-2 flex gap-3 text-xs text-slate-500">
+          <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Income</span>
+          <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-red-500" /> Expense</span>
+        </div>
+      </section>
+
+      <section className="rounded-xl bg-white/70 p-3">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h4 className="text-sm font-semibold text-slate-700">{t('Grafik Task Harian')}</h4>
+          <span className="text-xs text-slate-500">
+            {analytics.completed_tasks}/{analytics.total_tasks} {t('selesai')}
+          </span>
+        </div>
+        <div className="flex h-44 items-end gap-2">
+          {(analytics.daily_task_trend ?? []).map((item) => (
+            <div key={item.date} className="flex min-w-0 flex-1 flex-col items-center gap-1">
+              <div className="flex h-32 w-full items-end justify-center gap-1 rounded-lg bg-slate-50 px-1 pb-1">
+                <span className="w-2 rounded-t bg-blue-200" style={{ height: getPartnerBarHeight(item.total, taskMax) }} title={`Total ${item.total}`} />
+                <span className="w-2 rounded-t bg-blue-600" style={{ height: getPartnerBarHeight(item.completed, taskMax) }} title={`Selesai ${item.completed}`} />
+              </div>
+              <span className="truncate text-[10px] text-slate-500">
+                {new Date(`${item.date}T12:00:00`).toLocaleDateString(language === 'en' ? 'en-US' : 'id-ID', { weekday: 'short' })}
+              </span>
+            </div>
+          ))}
+        </div>
+        <div className="mt-2 flex gap-3 text-xs text-slate-500">
+          <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-blue-200" /> Total</span>
+          <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-blue-600" /> Selesai</span>
+        </div>
+      </section>
+
+      <section className="space-y-2">
+        <h4 className="text-sm font-semibold text-slate-700">{t('Progress Goal Partner')}</h4>
+        {(analytics.numeric_goal_progress ?? []).length === 0 ? (
+          <p className="rounded-xl bg-white/60 p-3 text-sm text-slate-500">{t('Belum ada goal untuk ditampilkan sebagai grafik')}</p>
+        ) : (
+          analytics.numeric_goal_progress.map((goal) => (
+            <div key={goal.id} className="rounded-xl bg-white/70 p-3">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-slate-800">{goal.title}</p>
+                <span className="text-xs font-semibold text-blue-700">{Math.round(goal.progress_rate)}%</span>
+              </div>
+              <Progress value={clampPercent(goal.progress_rate)} className="h-2 bg-slate-200" />
             </div>
           ))
         )}

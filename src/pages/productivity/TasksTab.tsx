@@ -35,6 +35,16 @@ type TaskStatusFilter = 'all' | 'open' | 'completed' | 'locked';
 type TaskVisibilityFilter = 'all' | 'public' | 'private';
 type TaskScheduleFilter = 'all' | 'daily' | 'one_time';
 
+const WEEKDAY_OPTIONS = [
+  { value: 0, short: 'Sen', label: 'Senin' },
+  { value: 1, short: 'Sel', label: 'Selasa' },
+  { value: 2, short: 'Rab', label: 'Rabu' },
+  { value: 3, short: 'Kam', label: 'Kamis' },
+  { value: 4, short: 'Jum', label: 'Jumat' },
+  { value: 5, short: 'Sab', label: 'Sabtu' },
+  { value: 6, short: 'Min', label: 'Minggu' },
+];
+
 function getDifficultyColor(difficulty: DifficultyEnum) {
   switch (difficulty) {
     case 'easy':
@@ -62,6 +72,36 @@ function getPriorityLabel(priority: PriorityEnum) {
 
 function getTaskPriority(task: Task): PriorityEnum {
   return task.priority || 'medium';
+}
+
+function getTodayWeekday() {
+  const jsDay = new Date().getDay();
+  return jsDay === 0 ? 6 : jsDay - 1;
+}
+
+function getTaskRecurrenceDays(task: Task) {
+  return Array.isArray(task.recurrence_days) ? task.recurrence_days : [];
+}
+
+function taskRunsToday(task: Task) {
+  if (!task.is_daily) return true;
+  const recurrenceDays = getTaskRecurrenceDays(task);
+  if (recurrenceDays.length === 0) return true;
+  return recurrenceDays.includes(getTodayWeekday());
+}
+
+function getRecurrenceLabel(days: number[]) {
+  if (days.length === 0 || days.length === 7) return 'Setiap hari';
+  return WEEKDAY_OPTIONS
+    .filter((day) => days.includes(day.value))
+    .map((day) => day.short)
+    .join(', ');
+}
+
+function toggleWeekday(days: number[], day: number) {
+  return days.includes(day)
+    ? days.filter((item) => item !== day)
+    : [...days, day].sort((a, b) => a - b);
 }
 
 function getTaskRewardPreview(config: GamificationConfig | null, difficulty: DifficultyEnum) {
@@ -119,6 +159,7 @@ export default function TasksTab() {
   const [newTaskSubGoalId, setNewTaskSubGoalId] = useState('none');
   const [newTaskIsPrivate, setNewTaskIsPrivate] = useState(false);
   const [newTaskIsDaily, setNewTaskIsDaily] = useState(false);
+  const [newTaskRecurrenceDays, setNewTaskRecurrenceDays] = useState<number[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -129,6 +170,7 @@ export default function TasksTab() {
   const [editTaskSubGoalId, setEditTaskSubGoalId] = useState('none');
   const [editTaskIsPrivate, setEditTaskIsPrivate] = useState(false);
   const [editTaskIsDaily, setEditTaskIsDaily] = useState(false);
+  const [editTaskRecurrenceDays, setEditTaskRecurrenceDays] = useState<number[]>([]);
   const [taskSearch, setTaskSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<TaskStatusFilter>('all');
   const [difficultyFilter, setDifficultyFilter] = useState<'all' | DifficultyEnum>('all');
@@ -206,6 +248,22 @@ export default function TasksTab() {
     [tasks],
   );
 
+  const weeklyTaskSchedule = useMemo(() => {
+    const recurringTasks = tasks.filter((task) => task.is_daily && !task.deleted_at);
+    return WEEKDAY_OPTIONS.map((day) => ({
+      ...day,
+      tasks: recurringTasks.filter((task) => {
+        const days = getTaskRecurrenceDays(task);
+        return days.length === 0 || days.includes(day.value);
+      }),
+    }));
+  }, [tasks]);
+
+  const recurringTaskCount = useMemo(
+    () => tasks.filter((task) => task.is_daily && !task.deleted_at).length,
+    [tasks],
+  );
+
   const filteredTasks = useMemo(() => tasks.filter((task) => {
     const normalizedSearch = taskSearch.trim().toLowerCase();
     const linkedLabel = getSubGoalLabel(task.sub_goal_id)?.toLowerCase() || '';
@@ -225,13 +283,14 @@ export default function TasksTab() {
     const matchesSchedule = scheduleFilter === 'all'
       || (scheduleFilter === 'daily' && task.is_daily)
       || (scheduleFilter === 'one_time' && !task.is_daily);
+    const matchesToday = taskRunsToday(task);
 
     const matchesFocus = !focusOnly
       || !activeGoal
       || !task.sub_goal_id
       || activeGoalSubGoalIds.has(task.sub_goal_id);
 
-    return matchesSearch && matchesStatus && matchesDifficulty && matchesVisibility && matchesSchedule && matchesFocus;
+    return matchesSearch && matchesStatus && matchesDifficulty && matchesVisibility && matchesSchedule && matchesToday && matchesFocus;
   }), [activeGoal, activeGoalSubGoalIds, difficultyFilter, focusOnly, getSubGoalLabel, goals, scheduleFilter, statusFilter, taskSearch, tasks, visibilityFilter]);
 
   const priorityGroups = useMemo(() => {
@@ -254,6 +313,7 @@ export default function TasksTab() {
     setNewTaskSubGoalId('none');
     setNewTaskIsPrivate(false);
     setNewTaskIsDaily(false);
+    setNewTaskRecurrenceDays([]);
   };
 
   const createTask = async () => {
@@ -271,6 +331,7 @@ export default function TasksTab() {
         sub_goal_id: newTaskSubGoalId === 'none' ? null : newTaskSubGoalId,
         is_private: newTaskIsPrivate,
         is_daily: newTaskIsDaily,
+        recurrence_days: newTaskIsDaily ? newTaskRecurrenceDays : [],
       });
       resetCreateForm();
       setDialogOpen(false);
@@ -309,6 +370,7 @@ export default function TasksTab() {
     setEditTaskSubGoalId(task.sub_goal_id || 'none');
     setEditTaskIsPrivate(task.is_private);
     setEditTaskIsDaily(task.is_daily);
+    setEditTaskRecurrenceDays(getTaskRecurrenceDays(task));
     setEditDialogOpen(true);
   };
 
@@ -328,6 +390,7 @@ export default function TasksTab() {
         sub_goal_id: editTaskSubGoalId === 'none' ? null : editTaskSubGoalId,
         is_private: editTaskIsPrivate,
         is_daily: editTaskIsDaily,
+        recurrence_days: editTaskIsDaily ? editTaskRecurrenceDays : [],
       });
       setEditDialogOpen(false);
       setEditingTask(null);
@@ -505,11 +568,57 @@ export default function TasksTab() {
                     </p>
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <Label>Tugas harian</Label>
-                        <p className="text-xs text-slate-500">Tandai jika tugas ini bagian dari rutinitas harian.</p>
+                        <Label>Tugas berulang</Label>
+                        <p className="text-xs text-slate-500">Pilih hari agar tugas otomatis muncul pada jadwal mingguan tertentu.</p>
                       </div>
-                      <Switch checked={newTaskIsDaily} onCheckedChange={(checked) => setNewTaskIsDaily(Boolean(checked))} />
+                      <Switch
+                        checked={newTaskIsDaily}
+                        onCheckedChange={(checked) => {
+                          const enabled = Boolean(checked);
+                          setNewTaskIsDaily(enabled);
+                          if (!enabled) setNewTaskRecurrenceDays([]);
+                        }}
+                      />
                     </div>
+                    {newTaskIsDaily && (
+                      <div className="space-y-2 rounded-md border border-slate-200 bg-white/70 p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <Label>Hari muncul</Label>
+                          <button
+                            type="button"
+                            className="text-xs font-medium text-blue-600 hover:text-blue-700"
+                            onClick={() => setNewTaskRecurrenceDays(WEEKDAY_OPTIONS.map((day) => day.value))}
+                          >
+                            Setiap hari
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {WEEKDAY_OPTIONS.map((day) => {
+                            const active = newTaskRecurrenceDays.includes(day.value);
+                            return (
+                              <button
+                                key={day.value}
+                                type="button"
+                                onClick={() => setNewTaskRecurrenceDays((current) => toggleWeekday(current, day.value))}
+                                className={`rounded-md border px-2.5 py-1 text-xs font-medium transition ${
+                                  active
+                                    ? 'border-blue-500 bg-blue-50 text-blue-700'
+                                    : 'border-slate-200 bg-white text-slate-500 hover:border-blue-300 hover:text-blue-600'
+                                }`}
+                                aria-pressed={active}
+                              >
+                                {day.short}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <p className="text-xs text-slate-500">
+                          {newTaskRecurrenceDays.length === 0
+                            ? 'Belum memilih hari berarti tugas muncul setiap hari.'
+                            : `Tugas muncul setiap ${getRecurrenceLabel(newTaskRecurrenceDays)}.`}
+                        </p>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <Label>Tugas privat</Label>
@@ -598,11 +707,57 @@ export default function TasksTab() {
                     </p>
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <Label>Tugas harian</Label>
-                        <p className="text-xs text-slate-500">Tugas harian akan terbuka lagi otomatis saat hari berganti.</p>
+                        <Label>Tugas berulang</Label>
+                        <p className="text-xs text-slate-500">Tugas akan terbuka lagi otomatis pada hari yang dipilih.</p>
                       </div>
-                      <Switch checked={editTaskIsDaily} onCheckedChange={(checked) => setEditTaskIsDaily(Boolean(checked))} />
+                      <Switch
+                        checked={editTaskIsDaily}
+                        onCheckedChange={(checked) => {
+                          const enabled = Boolean(checked);
+                          setEditTaskIsDaily(enabled);
+                          if (!enabled) setEditTaskRecurrenceDays([]);
+                        }}
+                      />
                     </div>
+                    {editTaskIsDaily && (
+                      <div className="space-y-2 rounded-md border border-slate-200 bg-white/70 p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <Label>Hari muncul</Label>
+                          <button
+                            type="button"
+                            className="text-xs font-medium text-blue-600 hover:text-blue-700"
+                            onClick={() => setEditTaskRecurrenceDays(WEEKDAY_OPTIONS.map((day) => day.value))}
+                          >
+                            Setiap hari
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {WEEKDAY_OPTIONS.map((day) => {
+                            const active = editTaskRecurrenceDays.includes(day.value);
+                            return (
+                              <button
+                                key={day.value}
+                                type="button"
+                                onClick={() => setEditTaskRecurrenceDays((current) => toggleWeekday(current, day.value))}
+                                className={`rounded-md border px-2.5 py-1 text-xs font-medium transition ${
+                                  active
+                                    ? 'border-blue-500 bg-blue-50 text-blue-700'
+                                    : 'border-slate-200 bg-white text-slate-500 hover:border-blue-300 hover:text-blue-600'
+                                }`}
+                                aria-pressed={active}
+                              >
+                                {day.short}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <p className="text-xs text-slate-500">
+                          {editTaskRecurrenceDays.length === 0
+                            ? 'Belum memilih hari berarti tugas muncul setiap hari.'
+                            : `Tugas muncul setiap ${getRecurrenceLabel(editTaskRecurrenceDays)}.`}
+                        </p>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <Label>Tugas privat</Label>
@@ -664,11 +819,61 @@ export default function TasksTab() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Semua jadwal</SelectItem>
-              <SelectItem value="daily">Harian</SelectItem>
+              <SelectItem value="daily">Berulang</SelectItem>
               <SelectItem value="one_time">Sekali saja</SelectItem>
             </SelectContent>
           </Select>
         </div>
+
+        {recurringTaskCount > 0 && (
+          <Card className="border-slate-200 bg-white/80">
+            <CardContent className="p-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h4 className="text-sm font-semibold text-slate-800">Jadwal Mingguan</h4>
+                  <p className="text-xs text-slate-500">
+                    {recurringTaskCount} tugas berulang tersimpan. Board utama hanya menampilkan jadwal hari ini.
+                  </p>
+                </div>
+                <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
+                  Hari ini: {WEEKDAY_OPTIONS.find((day) => day.value === getTodayWeekday())?.label}
+                </Badge>
+              </div>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-7">
+                {weeklyTaskSchedule.map((day) => (
+                  <div
+                    key={day.value}
+                    className={`min-h-[86px] rounded-md border p-2 ${
+                      day.value === getTodayWeekday()
+                        ? 'border-blue-200 bg-blue-50/80'
+                        : 'border-slate-200 bg-slate-50/60'
+                    }`}
+                  >
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <span className="text-xs font-semibold text-slate-700">{day.short}</span>
+                      <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-slate-500">
+                        {day.tasks.length}
+                      </span>
+                    </div>
+                    <div className="space-y-1">
+                      {day.tasks.slice(0, 3).map((task) => (
+                        <p key={task.id} className="truncate rounded bg-white/80 px-2 py-1 text-xs text-slate-600" title={task.title}>
+                          {task.title}
+                        </p>
+                      ))}
+                      {day.tasks.length === 0 && (
+                        <p className="text-xs text-slate-400">Kosong</p>
+                      )}
+                      {day.tasks.length > 3 && (
+                        <p className="text-xs font-medium text-blue-600">+{day.tasks.length - 3} lainnya</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <div className="task-board">
           {[
@@ -738,7 +943,7 @@ export default function TasksTab() {
                               {linkedSubGoalLabel && <span>{linkedSubGoalLabel}</span>}
                               {!linkedSubGoalLabel && <span>Task umum</span>}
                               {task.due_date && <span>Batas {new Date(task.due_date).toLocaleDateString('id-ID')}</span>}
-                              {task.is_daily && <span>Harian</span>}
+                              {task.is_daily && <span>{getRecurrenceLabel(getTaskRecurrenceDays(task))}</span>}
                               {task.is_private && <span className="inline-flex items-center gap-1"><Shield className="h-3 w-3" /> Privat</span>}
                             </div>
                           </div>

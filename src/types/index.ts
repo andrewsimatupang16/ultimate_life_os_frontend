@@ -177,6 +177,7 @@ export interface Task {
   is_private: boolean;
   used_timer: boolean;
   is_daily: boolean;
+  recurrence_days: number[];
   due_date: string | null;
   last_generated_date: string | null;
   xp_rewarded: number;
@@ -193,6 +194,7 @@ export interface TaskCreate {
   sub_goal_id?: string | null;
   is_private?: boolean;
   is_daily?: boolean;
+  recurrence_days?: number[];
   due_date?: string | null;
 }
 
@@ -204,6 +206,7 @@ export interface TaskUpdate {
   is_private?: boolean;
   used_timer?: boolean;
   is_daily?: boolean;
+  recurrence_days?: number[];
   due_date?: string | null;
   sub_goal_id?: string | null;
 }

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { goalApi, taskApi } from '@/api/productivity';
 import { rewardsApi } from '@/api/rewards';
-import type { CompletionRewardResponse, DifficultyEnum, GamificationConfig, Goal, Task } from '@/types';
+import type { CompletionRewardResponse, DifficultyEnum, GamificationConfig, Goal, PriorityEnum, Task } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -54,6 +54,16 @@ function getDifficultyLabel(difficulty: DifficultyEnum) {
   return 'Sulit';
 }
 
+function getPriorityLabel(priority: PriorityEnum) {
+  if (priority === 'high') return 'Tinggi';
+  if (priority === 'low') return 'Rendah';
+  return 'Sedang';
+}
+
+function getTaskPriority(task: Task): PriorityEnum {
+  return task.priority || 'medium';
+}
+
 function getTaskRewardPreview(config: GamificationConfig | null, difficulty: DifficultyEnum) {
   if (!config) return 'Hadiah mengikuti pengaturan aplikasi';
 
@@ -103,6 +113,7 @@ export default function TasksTab() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [newTaskPriority, setNewTaskPriority] = useState<PriorityEnum>('medium');
   const [newTaskDifficulty, setNewTaskDifficulty] = useState<DifficultyEnum>('medium');
   const [newTaskDueDate, setNewTaskDueDate] = useState('');
   const [newTaskSubGoalId, setNewTaskSubGoalId] = useState('none');
@@ -112,6 +123,7 @@ export default function TasksTab() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [editTaskTitle, setEditTaskTitle] = useState('');
+  const [editTaskPriority, setEditTaskPriority] = useState<PriorityEnum>('medium');
   const [editTaskDifficulty, setEditTaskDifficulty] = useState<DifficultyEnum>('medium');
   const [editTaskDueDate, setEditTaskDueDate] = useState('');
   const [editTaskSubGoalId, setEditTaskSubGoalId] = useState('none');
@@ -124,7 +136,7 @@ export default function TasksTab() {
   const [scheduleFilter, setScheduleFilter] = useState<TaskScheduleFilter>('all');
   const [focusOnly, setFocusOnly] = useState(true);
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
-  const [dragOverPriority, setDragOverPriority] = useState<DifficultyEnum | null>(null);
+  const [dragOverPriority, setDragOverPriority] = useState<PriorityEnum | null>(null);
 
   useEffect(() => {
     const requestedStatus = searchParams.get('status');
@@ -227,15 +239,16 @@ export default function TasksTab() {
     const completedOrLockedTasks = filteredTasks.filter((task) => task.is_completed || isTaskLocked(task, goals));
 
     return {
-      hard: openTasks.filter((task) => task.difficulty === 'hard'),
-      medium: openTasks.filter((task) => task.difficulty === 'medium'),
-      easy: openTasks.filter((task) => task.difficulty === 'easy'),
+      high: openTasks.filter((task) => getTaskPriority(task) === 'high'),
+      medium: openTasks.filter((task) => getTaskPriority(task) === 'medium'),
+      low: openTasks.filter((task) => getTaskPriority(task) === 'low'),
       done: completedOrLockedTasks,
     };
   }, [filteredTasks, goals]);
 
   const resetCreateForm = () => {
     setNewTaskTitle('');
+    setNewTaskPriority('medium');
     setNewTaskDifficulty('medium');
     setNewTaskDueDate('');
     setNewTaskSubGoalId('none');
@@ -252,6 +265,7 @@ export default function TasksTab() {
     try {
       await taskApi.create({
         title: newTaskTitle.trim(),
+        priority: newTaskPriority,
         difficulty: newTaskDifficulty,
         due_date: newTaskDueDate ? fromDateTimeLocal(newTaskDueDate) : null,
         sub_goal_id: newTaskSubGoalId === 'none' ? null : newTaskSubGoalId,
@@ -289,6 +303,7 @@ export default function TasksTab() {
 
     setEditingTask(task);
     setEditTaskTitle(task.title);
+    setEditTaskPriority(getTaskPriority(task));
     setEditTaskDifficulty(task.difficulty);
     setEditTaskDueDate(toDateTimeLocal(task.due_date));
     setEditTaskSubGoalId(task.sub_goal_id || 'none');
@@ -307,6 +322,7 @@ export default function TasksTab() {
     try {
       await taskApi.update(editingTask.id, {
         title: editTaskTitle.trim(),
+        priority: editTaskPriority,
         difficulty: editTaskDifficulty,
         due_date: editTaskDueDate ? fromDateTimeLocal(editTaskDueDate) : null,
         sub_goal_id: editTaskSubGoalId === 'none' ? null : editTaskSubGoalId,
@@ -332,23 +348,23 @@ export default function TasksTab() {
     }
   };
 
-  const moveTaskToPriority = async (taskId: string, nextDifficulty: DifficultyEnum) => {
+  const moveTaskToPriority = async (taskId: string, nextPriority: PriorityEnum) => {
     const task = tasks.find((item) => item.id === taskId);
-    if (!task || task.is_completed || isTaskLocked(task, goals) || task.difficulty === nextDifficulty) {
+    if (!task || task.is_completed || isTaskLocked(task, goals) || getTaskPriority(task) === nextPriority) {
       setDraggingTaskId(null);
       setDragOverPriority(null);
       return;
     }
 
     setTasks((current) => current.map((item) => (
-      item.id === taskId ? { ...item, difficulty: nextDifficulty } : item
+      item.id === taskId ? { ...item, priority: nextPriority } : item
     )));
     setDraggingTaskId(null);
     setDragOverPriority(null);
 
     try {
-      await taskApi.update(task.id, { difficulty: nextDifficulty });
-      toast({ title: `Prioritas dipindah ke ${getDifficultyLabel(nextDifficulty).toLowerCase()}` });
+      await taskApi.update(task.id, { priority: nextPriority });
+      toast({ title: `Prioritas dipindah ke ${getPriorityLabel(nextPriority).toLowerCase()}` });
     } catch (error) {
       await loadTasks();
       toast({ title: getApiErrorMessage(error, 'Gagal mengubah prioritas tugas'), variant: 'destructive' });
@@ -448,14 +464,27 @@ export default function TasksTab() {
                 </div>
                 <div>
                   <Label>Prioritas</Label>
+                  <Select value={newTaskPriority} onValueChange={(value: PriorityEnum) => setNewTaskPriority(value)}>
+                    <SelectTrigger className="bg-white/70 border-slate-200 text-slate-800">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white/70 border-slate-200">
+                      <SelectItem value="low">Rendah</SelectItem>
+                      <SelectItem value="medium">Sedang</SelectItem>
+                      <SelectItem value="high">Tinggi</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Kesulitan</Label>
                   <Select value={newTaskDifficulty} onValueChange={(value: DifficultyEnum) => setNewTaskDifficulty(value)}>
                     <SelectTrigger className="bg-white/70 border-slate-200 text-slate-800">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-white/70 border-slate-200">
-                      <SelectItem value="easy">Ringan</SelectItem>
-                      <SelectItem value="medium">Normal</SelectItem>
-                      <SelectItem value="hard">Penting / berat</SelectItem>
+                      <SelectItem value="easy">Mudah</SelectItem>
+                      <SelectItem value="medium">Sedang</SelectItem>
+                      <SelectItem value="hard">Sulit</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -528,14 +557,27 @@ export default function TasksTab() {
                 </div>
                 <div>
                   <Label>Prioritas</Label>
+                  <Select value={editTaskPriority} onValueChange={(value: PriorityEnum) => setEditTaskPriority(value)}>
+                    <SelectTrigger className="bg-white/70 border-slate-200 text-slate-800">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white/70 border-slate-200">
+                      <SelectItem value="low">Rendah</SelectItem>
+                      <SelectItem value="medium">Sedang</SelectItem>
+                      <SelectItem value="high">Tinggi</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Kesulitan</Label>
                   <Select value={editTaskDifficulty} onValueChange={(value: DifficultyEnum) => setEditTaskDifficulty(value)}>
                     <SelectTrigger className="bg-white/70 border-slate-200 text-slate-800">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-white/70 border-slate-200">
-                      <SelectItem value="easy">Ringan</SelectItem>
-                      <SelectItem value="medium">Normal</SelectItem>
-                      <SelectItem value="hard">Penting / berat</SelectItem>
+                      <SelectItem value="easy">Mudah</SelectItem>
+                      <SelectItem value="medium">Sedang</SelectItem>
+                      <SelectItem value="hard">Sulit</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -630,21 +672,21 @@ export default function TasksTab() {
 
         <div className="task-board">
           {[
-            { key: 'hard' as const, title: 'Prioritas Tinggi', difficulty: 'hard' as DifficultyEnum, color: '#ef4444', items: priorityGroups.hard },
-            { key: 'medium' as const, title: 'Prioritas Sedang', difficulty: 'medium' as DifficultyEnum, color: '#d28b0f', items: priorityGroups.medium },
-            { key: 'easy' as const, title: 'Prioritas Rendah', difficulty: 'easy' as DifficultyEnum, color: '#22ad73', items: priorityGroups.easy },
+            { key: 'high' as const, title: 'Prioritas Tinggi', priority: 'high' as PriorityEnum, color: '#ef4444', items: priorityGroups.high },
+            { key: 'medium' as const, title: 'Prioritas Sedang', priority: 'medium' as PriorityEnum, color: '#d28b0f', items: priorityGroups.medium },
+            { key: 'low' as const, title: 'Prioritas Rendah', priority: 'low' as PriorityEnum, color: '#22ad73', items: priorityGroups.low },
           ].map((section) => (
             <section
               key={section.key}
-              className={`task-priority-section ${dragOverPriority === section.difficulty ? 'is-drag-over' : ''}`}
+              className={`task-priority-section ${dragOverPriority === section.priority ? 'is-drag-over' : ''}`}
               onDragOver={(event) => {
                 event.preventDefault();
-                setDragOverPriority(section.difficulty);
+                setDragOverPriority(section.priority);
               }}
               onDragLeave={() => setDragOverPriority(null)}
               onDrop={(event) => {
                 event.preventDefault();
-                if (draggingTaskId) void moveTaskToPriority(draggingTaskId, section.difficulty);
+                if (draggingTaskId) void moveTaskToPriority(draggingTaskId, section.priority);
               }}
             >
               <div className="task-section-header">

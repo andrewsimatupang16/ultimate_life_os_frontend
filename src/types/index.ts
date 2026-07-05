@@ -1,5 +1,6 @@
 // Enums
 export type DifficultyEnum = 'easy' | 'medium' | 'hard';
+export type PriorityEnum = 'low' | 'medium' | 'high';
 export type HabitTypeEnum = 'good' | 'bad';
 export type WalletTypeEnum = 'cash' | 'bank' | 'ewallet';
 export type TransactionTypeEnum = 'income' | 'expense';
@@ -170,6 +171,7 @@ export interface Task {
   sub_goal_id: string | null;
   title: string;
   difficulty: DifficultyEnum;
+  priority: PriorityEnum;
   is_completed: boolean;
   completed_at: string | null;
   is_private: boolean;
@@ -187,6 +189,7 @@ export interface Task {
 export interface TaskCreate {
   title: string;
   difficulty?: DifficultyEnum;
+  priority?: PriorityEnum;
   sub_goal_id?: string | null;
   is_private?: boolean;
   is_daily?: boolean;
@@ -196,6 +199,7 @@ export interface TaskCreate {
 export interface TaskUpdate {
   title?: string;
   difficulty?: DifficultyEnum;
+  priority?: PriorityEnum;
   is_completed?: boolean;
   is_private?: boolean;
   used_timer?: boolean;

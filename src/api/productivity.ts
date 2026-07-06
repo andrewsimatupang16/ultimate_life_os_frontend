@@ -3,7 +3,7 @@ import type {
   Goal, GoalCreate, GoalUpdate,
   SubGoal, SubGoalCreate, SubGoalUpdate, KeyResultHistory,
   Task, TaskCreate, TaskUpdate,
-  Habit, HabitCreate, HabitUpdate, HabitLogResponse,
+  Habit, HabitCreate, HabitUpdate, HabitHistoryItem, HabitLogResponse,
   CompletionRewardResponse,
 } from '@/types';
 
@@ -85,6 +85,11 @@ export const taskApi = {
     return data;
   },
 
+  getRecurring: async (): Promise<Task[]> => {
+    const { data } = await api.get<Task[]>('/productivity/tasks/recurring');
+    return data;
+  },
+
   create: async (task: TaskCreate): Promise<Task> => {
     const { data } = await api.post<Task>('/productivity/tasks', task);
     return data;
@@ -124,6 +129,18 @@ export const habitApi = {
 
   log: async (id: string): Promise<HabitLogResponse> => {
     const { data } = await api.post<HabitLogResponse>(`/productivity/habits/${id}/log`);
+    return data;
+  },
+
+  logDate: async (id: string, localDate: string): Promise<HabitLogResponse> => {
+    const { data } = await api.post<HabitLogResponse>(`/productivity/habits/${id}/log-date`, {
+      local_date: localDate,
+    });
+    return data;
+  },
+
+  history: async (id: string): Promise<HabitHistoryItem[]> => {
+    const { data } = await api.get<HabitHistoryItem[]>(`/productivity/habits/${id}/history`);
     return data;
   },
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { habitApi } from '@/api/productivity';
-import type { Habit, HabitLogResponse } from '@/types';
+import type { Habit, HabitHistoryItem, HabitLogResponse } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Trash2, CheckCircle2, TrendingUp, TrendingDown, Zap, Pencil } from 'lucide-react';
+import { Plus, Trash2, TrendingUp, TrendingDown, Zap, Pencil, CalendarDays } from 'lucide-react';
 import LoadingState from '@/components/LoadingState';
 import EmptyState from '@/components/EmptyState';
 import ErrorState from '@/components/ErrorState';
@@ -27,6 +27,45 @@ const getLocalDateKey = (value: string | null | undefined) => {
 };
 
 const getTodayDateKey = () => new Date().toLocaleDateString('en-CA');
+
+const getMonthKey = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}`;
+};
+
+const parseMonthKey = (monthKey: string) => {
+  const [yearText, monthText] = monthKey.split('-');
+  const year = Number(yearText);
+  const monthIndex = Number(monthText) - 1;
+  return { year, monthIndex };
+};
+
+const getDateKeyFromParts = (year: number, monthIndex: number, day: number) => {
+  return `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+};
+
+const getMonthLabel = (monthKey: string) => {
+  const { year, monthIndex } = parseMonthKey(monthKey);
+  return new Date(year, monthIndex, 1).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+};
+
+const getCalendarDays = (monthKey: string) => {
+  const { year, monthIndex } = parseMonthKey(monthKey);
+  const totalDays = new Date(year, monthIndex + 1, 0).getDate();
+  return Array.from({ length: totalDays }, (_, index) => {
+    const day = index + 1;
+    return {
+      day,
+      dateKey: getDateKeyFromParts(year, monthIndex, day),
+    };
+  });
+};
+
+const shiftMonthKey = (monthKey: string, monthOffset: number) => {
+  const { year, monthIndex } = parseMonthKey(monthKey);
+  return getMonthKey(new Date(year, monthIndex + monthOffset, 1));
+};
 
 const isHabitLoggedToday = (habit: Habit) => {
   if (habit.logged_today) return true;
@@ -82,7 +121,12 @@ export default function HabitsTab() {
   const [editHabitType, setEditHabitType] = useState<'good' | 'bad'>('good');
   const [editHabitReminderTime, setEditHabitReminderTime] = useState('');
   const [habitSearch, setHabitSearch] = useState('');
-  const [loggingHabitId, setLoggingHabitId] = useState<string | null>(null);
+  const [selectedHabit, setSelectedHabit] = useState<Habit | null>(null);
+  const [habitCalendarOpen, setHabitCalendarOpen] = useState(false);
+  const [habitHistoryById, setHabitHistoryById] = useState<Record<string, HabitHistoryItem[]>>({});
+  const [historyLoadingHabitId, setHistoryLoadingHabitId] = useState<string | null>(null);
+  const [calendarMonth, setCalendarMonth] = useState(() => getMonthKey(new Date()));
+  const [loggingHabitDateKey, setLoggingHabitDateKey] = useState<string | null>(null);
 
   const loadHabits = useCallback(async () => {
     setLoading(true);
@@ -98,6 +142,18 @@ export default function HabitsTab() {
       setLoading(false);
     }
   }, []);
+
+  const loadHabitHistory = useCallback(async (habitId: string) => {
+    setHistoryLoadingHabitId(habitId);
+    try {
+      const history = await habitApi.history(habitId);
+      setHabitHistoryById((current) => ({ ...current, [habitId]: history }));
+    } catch (error) {
+      toast({ title: getApiErrorMessage(error, 'Gagal memuat riwayat kebiasaan'), variant: 'destructive' });
+    } finally {
+      setHistoryLoadingHabitId(null);
+    }
+  }, [toast]);
 
 
   useEffect(() => {
@@ -167,30 +223,52 @@ export default function HabitsTab() {
     }
   };
 
-  const logHabit = async (habit: Habit) => {
-    if (isHabitLoggedToday(habit)) {
-      toast({ title: 'Kebiasaan sudah dicatat hari ini.' });
+
+  const openHabitCalendar = async (habit: Habit) => {
+    setSelectedHabit(habit);
+    setCalendarMonth(getMonthKey(new Date()));
+    setHabitCalendarOpen(true);
+    await loadHabitHistory(habit.id);
+  };
+
+  const closeHabitCalendar = () => {
+    setHabitCalendarOpen(false);
+    setSelectedHabit(null);
+    setLoggingHabitDateKey(null);
+  };
+
+  const logHabitDate = async (dateKey: string) => {
+    if (!selectedHabit) return;
+
+    if (dateKey > getTodayDateKey()) {
+      toast({ title: 'Tanggal masa depan belum bisa dicatat.', variant: 'destructive' });
       return;
     }
 
-    if (loggingHabitId === habit.id) return;
+    const history = habitHistoryById[selectedHabit.id] ?? [];
+    if (history.some((item) => item.local_date === dateKey)) {
+      toast({ title: 'Kebiasaan sudah dicatat pada tanggal ini.' });
+      return;
+    }
 
-    setLoggingHabitId(habit.id);
+    if (loggingHabitDateKey) return;
+
+    setLoggingHabitDateKey(dateKey);
     try {
-      const result: HabitLogResponse = await habitApi.log(habit.id);
+      const result = await habitApi.logDate(selectedHabit.id, dateKey);
 
       if (!result.success) {
-        toast({ title: result.message || 'Kebiasaan sudah dicatat hari ini.', variant: 'destructive' });
-        await loadHabits();
+        toast({ title: result.message || 'Kebiasaan sudah dicatat pada tanggal ini.', variant: 'destructive' });
+        await loadHabitHistory(selectedHabit.id);
         return;
       }
 
-      await Promise.all([loadHabits(), refreshUser()]);
-      toast({ title: getHabitLogMessage(habit, result) });
+      await Promise.all([loadHabits(), refreshUser(), loadHabitHistory(selectedHabit.id)]);
+      toast({ title: getHabitLogMessage(selectedHabit, result) });
     } catch (error) {
       toast({ title: getApiErrorMessage(error, 'Gagal mencatat kebiasaan'), variant: 'destructive' });
     } finally {
-      setLoggingHabitId(null);
+      setLoggingHabitDateKey(null);
     }
   };
 
@@ -214,6 +292,14 @@ export default function HabitsTab() {
   const allBadHabits = useMemo(() => habits.filter(h => h.habit_type === 'bad'), [habits]);
   const goodHabits = useMemo(() => filteredHabits.filter(h => h.habit_type === 'good'), [filteredHabits]);
   const badHabits = useMemo(() => filteredHabits.filter(h => h.habit_type === 'bad'), [filteredHabits]);
+  const selectedHabitHistory = useMemo(() => {
+    if (!selectedHabit) return [];
+    return habitHistoryById[selectedHabit.id] ?? [];
+  }, [habitHistoryById, selectedHabit]);
+  const selectedHabitLoggedDates = useMemo(() => {
+    return new Set(selectedHabitHistory.map((item) => item.local_date));
+  }, [selectedHabitHistory]);
+  const calendarDays = useMemo(() => getCalendarDays(calendarMonth), [calendarMonth]);
 
   if (loading) return <LoadingState label="Memuat kebiasaan..." />;
   if (loadError) {
@@ -297,23 +383,26 @@ export default function HabitsTab() {
         <div className={compactGridClass}>
           {goodHabits.map((habit) => {
             const loggedToday = isHabitLoggedToday(habit);
-            const isLogging = loggingHabitId === habit.id;
 
             return (
-            <Card id={dashboardTargetId(habit.id)} key={habit.id} className={`${compactCardClass} ${highlightClassName(habit.id)}`}>
+            <Card
+              id={dashboardTargetId(habit.id)}
+              key={habit.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => void openHabitCalendar(habit)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  void openHabitCalendar(habit);
+                }
+              }}
+              className={`${compactCardClass} ${highlightClassName(habit.id)} cursor-pointer transition hover:-translate-y-0.5 hover:shadow-lg`}
+            >
               <CardContent className={compactContentClass}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-start gap-3">
-                    <Button
-                      size="sm"
-                      onClick={() => void logHabit(habit)}
-                      disabled={loggedToday || isLogging}
-                      aria-label={loggedToday ? 'Kebiasaan sudah dicatat hari ini' : `Catat kebiasaan ${habit.title}`}
-                      title={loggedToday ? 'Sudah dicatat hari ini' : 'Catat kebiasaan hari ini'}
-                      className="app-list-icon bg-emerald-600 p-0 text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      <CheckCircle2 className="h-4 w-4" />
-                    </Button>
+                    <div className="mt-1 h-3 w-3 shrink-0 rounded-full bg-emerald-500" aria-hidden="true" />
                     <div className="min-w-0">
                       <h4 className={`${compactTitleClass} text-slate-800`}>{habit.title}</h4>
                       <div className="mt-1 flex flex-wrap gap-1.5 text-xs text-slate-500">
@@ -330,7 +419,10 @@ export default function HabitsTab() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => openEditHabitDialog(habit)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openEditHabitDialog(habit);
+                      }}
                       aria-label={`Edit kebiasaan ${habit.title}`}
                       className={`${compactIconButtonClass} text-slate-500 hover:text-blue-600`}
                     >
@@ -339,11 +431,14 @@ export default function HabitsTab() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => confirm({
-                        title: 'Hapus kebiasaan?',
-                        description: 'Kebiasaan ini akan dihapus dari pelacakan harian.',
-                        onConfirm: () => deleteHabit(habit.id),
-                      })}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        confirm({
+                          title: 'Hapus kebiasaan?',
+                          description: 'Kebiasaan ini akan dihapus dari pelacakan harian.',
+                          onConfirm: () => deleteHabit(habit.id),
+                        });
+                      }}
                       className={`${compactIconButtonClass} text-red-600 hover:text-red-700`}
                     >
                       <Trash2 className={compactIconClass} />
@@ -352,6 +447,9 @@ export default function HabitsTab() {
                 </div>
                 <div className="app-list-highlight bg-emerald-50 text-emerald-600">
                   Total: {habit.total_completions}x · Didapat: {habit.xp_rewarded} XP, {habit.coin_rewarded} koin
+                </div>
+                <div className="mt-2 flex items-center gap-1 text-xs font-medium text-blue-600">
+                  <CalendarDays className="h-3 w-3" /> Klik kartu untuk isi habit di kalender bulan ini
                 </div>
               </CardContent>
             </Card>
@@ -384,24 +482,26 @@ export default function HabitsTab() {
         <div className={compactGridClass}>
           {badHabits.map((habit) => {
             const loggedToday = isHabitLoggedToday(habit);
-            const isLogging = loggingHabitId === habit.id;
 
             return (
-            <Card id={dashboardTargetId(habit.id)} key={habit.id} className={`${compactCardClass} ${highlightClassName(habit.id)}`}>
+            <Card
+              id={dashboardTargetId(habit.id)}
+              key={habit.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => void openHabitCalendar(habit)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  void openHabitCalendar(habit);
+                }
+              }}
+              className={`${compactCardClass} ${highlightClassName(habit.id)} cursor-pointer transition hover:-translate-y-0.5 hover:shadow-lg`}
+            >
               <CardContent className={compactContentClass}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-start gap-3">
-                    <Button
-                      size="sm"
-                      onClick={() => void logHabit(habit)}
-                      disabled={loggedToday || isLogging}
-                      aria-label={loggedToday ? 'Kebiasaan sudah dicatat hari ini' : `Catat pelanggaran ${habit.title}`}
-                      title={loggedToday ? 'Sudah dicatat hari ini' : 'Catat pelanggaran hari ini'}
-                      variant="outline"
-                      className="app-list-icon border-red-500 bg-red-50 p-0 text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      <TrendingDown className="h-4 w-4" />
-                    </Button>
+                    <div className="mt-1 h-3 w-3 shrink-0 rounded-full bg-red-500" aria-hidden="true" />
                     <div className="min-w-0">
                       <h4 className={`${compactTitleClass} text-slate-800`}>{habit.title}</h4>
                       <div className="mt-1 flex flex-wrap gap-1.5 text-xs text-slate-500">
@@ -415,7 +515,10 @@ export default function HabitsTab() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => openEditHabitDialog(habit)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openEditHabitDialog(habit);
+                      }}
                       aria-label={`Edit kebiasaan ${habit.title}`}
                       className={`${compactIconButtonClass} text-slate-500 hover:text-blue-600`}
                     >
@@ -424,11 +527,14 @@ export default function HabitsTab() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => confirm({
-                        title: 'Hapus kebiasaan?',
-                        description: 'Kebiasaan ini akan dihapus dari pelacakan harian.',
-                        onConfirm: () => deleteHabit(habit.id),
-                      })}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        confirm({
+                          title: 'Hapus kebiasaan?',
+                          description: 'Kebiasaan ini akan dihapus dari pelacakan harian.',
+                          onConfirm: () => deleteHabit(habit.id),
+                        });
+                      }}
                       className={`${compactIconButtonClass} text-red-600 hover:text-red-700`}
                     >
                       <Trash2 className={compactIconClass} />
@@ -437,6 +543,9 @@ export default function HabitsTab() {
                 </div>
                 <div className="app-list-highlight bg-red-50 text-red-600">
                   {getBadHabitPenaltySummary(habit)}
+                </div>
+                <div className="mt-2 flex items-center gap-1 text-xs font-medium text-blue-600">
+                  <CalendarDays className="h-3 w-3" /> Klik kartu untuk isi habit di kalender bulan ini
                 </div>
               </CardContent>
             </Card>
@@ -461,6 +570,119 @@ export default function HabitsTab() {
         </div>
       </div>
     </div>
+
+    <Dialog
+      open={habitCalendarOpen}
+      onOpenChange={(open) => {
+        if (!open) {
+          closeHabitCalendar();
+          return;
+        }
+        setHabitCalendarOpen(true);
+      }}
+    >
+      <DialogContent className="max-w-2xl border-slate-200 bg-[#F8FAFC] text-slate-800">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <CalendarDays className="h-5 w-5 text-blue-600" />
+            Kalender Habit
+          </DialogTitle>
+        </DialogHeader>
+
+        {selectedHabit && (
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Habit dipilih</p>
+                  <h4 className="mt-1 text-lg font-semibold text-slate-800">{selectedHabit.title}</h4>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Klik tanggal untuk menandai habit sudah dilakukan pada hari itu. Tanggal masa depan sengaja dikunci, karena mencicil disiplin ke masa depan itu curang versi kalender.
+                  </p>
+                </div>
+                <div className={`rounded-full px-3 py-1 text-xs font-semibold ${selectedHabit.habit_type === 'good' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
+                  {selectedHabit.habit_type === 'good' ? 'Kebiasaan baik' : 'Kebiasaan buruk'}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setCalendarMonth((current) => shiftMonthKey(current, -1))}
+              >
+                Bulan sebelumnya
+              </Button>
+              <div className="text-center">
+                <p className="text-sm font-semibold capitalize text-slate-800">{getMonthLabel(calendarMonth)}</p>
+                <p className="text-xs text-slate-500">
+                  {selectedHabitHistory.filter((item) => item.local_date.startsWith(calendarMonth)).length} dari {calendarDays.length} hari terisi
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setCalendarMonth((current) => shiftMonthKey(current, 1))}
+                disabled={calendarMonth >= getMonthKey(new Date())}
+              >
+                Bulan berikutnya
+              </Button>
+            </div>
+
+            {historyLoadingHabitId === selectedHabit.id ? (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-white/70 p-6 text-center text-sm text-slate-500">
+                Memuat riwayat habit...
+              </div>
+            ) : (
+              <div className="grid grid-cols-7 gap-2">
+                {calendarDays.map((day) => {
+                  const filled = selectedHabitLoggedDates.has(day.dateKey);
+                  const futureDate = day.dateKey > getTodayDateKey();
+                  const isLoggingDate = loggingHabitDateKey === day.dateKey;
+                  const filledClass = selectedHabit.habit_type === 'good'
+                    ? 'border-emerald-500 bg-emerald-500 text-white shadow-sm'
+                    : 'border-red-500 bg-red-500 text-white shadow-sm';
+
+                  return (
+                    <button
+                      key={day.dateKey}
+                      type="button"
+                      onClick={() => void logHabitDate(day.dateKey)}
+                      disabled={filled || futureDate || Boolean(loggingHabitDateKey)}
+                      title={
+                        filled
+                          ? 'Sudah terisi'
+                          : futureDate
+                            ? 'Tanggal masa depan belum bisa diisi'
+                            : `Isi tanggal ${day.day}`
+                      }
+                      className={`h-10 rounded-xl border text-sm font-semibold transition ${
+                        filled
+                          ? filledClass
+                          : futureDate
+                            ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-300'
+                            : 'border-slate-200 bg-white text-slate-600 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600'
+                      } ${isLoggingDate ? 'animate-pulse' : ''}`}
+                    >
+                      {day.day}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+              <span className="inline-flex items-center gap-1"><span className="h-3 w-3 rounded bg-slate-100 ring-1 ring-slate-200" /> Belum diisi</span>
+              <span className="inline-flex items-center gap-1"><span className={`h-3 w-3 rounded ${selectedHabit.habit_type === 'good' ? 'bg-emerald-500' : 'bg-red-500'}`} /> Sudah diisi</span>
+              <span className="inline-flex items-center gap-1"><span className="h-3 w-3 rounded bg-slate-200" /> Masa depan dikunci</span>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
 
     <Dialog
       open={editDialogOpen}

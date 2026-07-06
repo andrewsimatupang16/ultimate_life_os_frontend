@@ -178,6 +178,7 @@ export interface Task {
   used_timer: boolean;
   is_daily: boolean;
   recurrence_days: number[];
+  start_date: string | null;
   due_date: string | null;
   last_generated_date: string | null;
   xp_rewarded: number;
@@ -195,6 +196,7 @@ export interface TaskCreate {
   is_private?: boolean;
   is_daily?: boolean;
   recurrence_days?: number[];
+  start_date?: string | null;
   due_date?: string | null;
 }
 
@@ -207,6 +209,7 @@ export interface TaskUpdate {
   used_timer?: boolean;
   is_daily?: boolean;
   recurrence_days?: number[];
+  start_date?: string | null;
   due_date?: string | null;
   sub_goal_id?: string | null;
 }
@@ -247,6 +250,26 @@ export interface HabitUpdate {
   title?: string;
   habit_type?: HabitTypeEnum;
   reminder_time?: string | null;
+}
+
+export interface HabitLogDatePayload {
+  local_date: string;
+}
+
+export interface HabitHistoryItem {
+  id: string;
+  user_id: string;
+  habit_id: string;
+  habit_type: HabitTypeEnum;
+  local_date: string;
+  logged_at: string;
+  xp_earned: number;
+  coin_earned: number;
+  penalty: number;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
 }
 
 export interface HabitLogResponse {

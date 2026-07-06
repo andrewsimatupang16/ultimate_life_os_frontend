@@ -79,11 +79,29 @@ function getTodayWeekday() {
   return jsDay === 0 ? 6 : jsDay - 1;
 }
 
+function getTodayDateInputValue() {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function taskHasStarted(task: Task) {
+  return !task.start_date || task.start_date <= getTodayDateInputValue();
+}
+
+function formatTaskStartDate(value: string | null | undefined) {
+  if (!value) return '';
+  return new Date(`${value}T00:00:00`).toLocaleDateString('id-ID');
+}
+
 function getTaskRecurrenceDays(task: Task) {
   return Array.isArray(task.recurrence_days) ? task.recurrence_days : [];
 }
 
 function taskRunsToday(task: Task) {
+  if (!taskHasStarted(task)) return false;
   if (!task.is_daily) return true;
   const recurrenceDays = getTaskRecurrenceDays(task);
   if (recurrenceDays.length === 0) return true;
@@ -148,6 +166,7 @@ export default function TasksTab() {
   const { highlightClassName } = useDashboardTargetHighlight();
   const [searchParams] = useSearchParams();
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [recurringTasks, setRecurringTasks] = useState<Task[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [rewardConfig, setRewardConfig] = useState<GamificationConfig | null>(null);
   const [loading, setLoading] = useState(true);
@@ -156,6 +175,7 @@ export default function TasksTab() {
   const [newTaskPriority, setNewTaskPriority] = useState<PriorityEnum>('medium');
   const [newTaskDifficulty, setNewTaskDifficulty] = useState<DifficultyEnum>('medium');
   const [newTaskDueDate, setNewTaskDueDate] = useState('');
+  const [newTaskStartDate, setNewTaskStartDate] = useState('');
   const [newTaskSubGoalId, setNewTaskSubGoalId] = useState('none');
   const [newTaskIsPrivate, setNewTaskIsPrivate] = useState(false);
   const [newTaskIsDaily, setNewTaskIsDaily] = useState(false);
@@ -167,6 +187,7 @@ export default function TasksTab() {
   const [editTaskPriority, setEditTaskPriority] = useState<PriorityEnum>('medium');
   const [editTaskDifficulty, setEditTaskDifficulty] = useState<DifficultyEnum>('medium');
   const [editTaskDueDate, setEditTaskDueDate] = useState('');
+  const [editTaskStartDate, setEditTaskStartDate] = useState('');
   const [editTaskSubGoalId, setEditTaskSubGoalId] = useState('none');
   const [editTaskIsPrivate, setEditTaskIsPrivate] = useState(false);
   const [editTaskIsDaily, setEditTaskIsDaily] = useState(false);
@@ -190,17 +211,20 @@ export default function TasksTab() {
     setLoading(true);
     setLoadError('');
     try {
-      const [taskData, goalData, configData] = await Promise.all([
+      const [taskData, recurringTaskData, goalData, configData] = await Promise.all([
         taskApi.getAll(),
+        taskApi.getRecurring(),
         goalApi.getAll(),
         rewardsApi.getConfig(),
       ]);
       setTasks(taskData);
+      setRecurringTasks(recurringTaskData);
       setGoals(goalData);
       setRewardConfig(configData);
     } catch (error) {
       console.error(error);
       setTasks([]);
+      setRecurringTasks([]);
       setGoals([]);
       setRewardConfig(null);
       setLoadError(getApiErrorMessage(error, 'Gagal memuat data tugas dan target.'));
@@ -234,8 +258,8 @@ export default function TasksTab() {
   );
 
   const weeklyRecurringTasks = useMemo(
-    () => tasks.filter((task) => task.is_daily && !task.deleted_at),
-    [tasks],
+    () => recurringTasks.filter((task) => task.is_daily && !task.deleted_at),
+    [recurringTasks],
   );
 
   const recurringTaskCount = useMemo(
@@ -284,6 +308,7 @@ export default function TasksTab() {
     setNewTaskPriority('medium');
     setNewTaskDifficulty('medium');
     setNewTaskDueDate('');
+    setNewTaskStartDate('');
     setNewTaskSubGoalId('none');
     setNewTaskIsPrivate(false);
     setNewTaskIsDaily(false);
@@ -301,6 +326,7 @@ export default function TasksTab() {
         title: newTaskTitle.trim(),
         priority: newTaskPriority,
         difficulty: newTaskDifficulty,
+        start_date: newTaskStartDate || null,
         due_date: newTaskDueDate ? fromDateTimeLocal(newTaskDueDate) : null,
         sub_goal_id: newTaskSubGoalId === 'none' ? null : newTaskSubGoalId,
         is_private: newTaskIsPrivate,
@@ -310,7 +336,12 @@ export default function TasksTab() {
       resetCreateForm();
       setDialogOpen(false);
       await loadTasks();
-      toast({ title: 'Tugas berhasil dibuat' });
+      toast({
+        title: newTaskStartDate && newTaskStartDate > getTodayDateInputValue() ? 'Tugas berhasil dijadwalkan' : 'Tugas berhasil dibuat',
+        description: newTaskStartDate && newTaskStartDate > getTodayDateInputValue()
+          ? `Tugas mulai muncul pada ${formatTaskStartDate(newTaskStartDate)}.`
+          : undefined,
+      });
     } catch (error) {
       toast({ title: getApiErrorMessage(error, 'Gagal membuat tugas'), variant: 'destructive' });
     }
@@ -341,6 +372,7 @@ export default function TasksTab() {
     setEditTaskPriority(getTaskPriority(task));
     setEditTaskDifficulty(task.difficulty);
     setEditTaskDueDate(toDateTimeLocal(task.due_date));
+    setEditTaskStartDate(task.start_date || '');
     setEditTaskSubGoalId(task.sub_goal_id || 'none');
     setEditTaskIsPrivate(task.is_private);
     setEditTaskIsDaily(task.is_daily);
@@ -360,6 +392,7 @@ export default function TasksTab() {
         title: editTaskTitle.trim(),
         priority: editTaskPriority,
         difficulty: editTaskDifficulty,
+        start_date: editTaskStartDate || null,
         due_date: editTaskDueDate ? fromDateTimeLocal(editTaskDueDate) : null,
         sub_goal_id: editTaskSubGoalId === 'none' ? null : editTaskSubGoalId,
         is_private: editTaskIsPrivate,
@@ -375,11 +408,14 @@ export default function TasksTab() {
     }
   };
 
-  const deleteTask = async (id: string) => {
+  const deleteTask = async (task: Task) => {
     try {
-      await taskApi.delete(id);
+      await taskApi.delete(task.id);
       await loadTasks();
-      toast({ title: 'Tugas berhasil dihapus' });
+      toast({
+        title: task.is_daily ? 'Tugas hari ini berhasil dihapus' : 'Tugas berhasil dihapus',
+        description: task.is_daily ? 'Jadwal tugas untuk hari lain tetap aman.' : undefined,
+      });
     } catch (error) {
       toast({ title: getApiErrorMessage(error, 'Gagal menghapus tugas'), variant: 'destructive' });
     }
@@ -503,6 +539,18 @@ export default function TasksTab() {
                   </Select>
                   <p className="mt-1 text-xs text-slate-500">
                     Pilih detail goal jika task ini menunjang goal tertentu. Biarkan tanpa goal untuk task umum.
+                  </p>
+                </div>
+                <div>
+                  <Label>Tanggal mulai muncul (opsional)</Label>
+                  <Input
+                    type="date"
+                    value={newTaskStartDate}
+                    onChange={(e) => setNewTaskStartDate(e.target.value)}
+                    className="bg-white/70 border-slate-200 text-slate-800"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">
+                    Kosongkan jika tugas langsung muncul hari ini. Isi tanggal jika tugas baru boleh tampil mulai hari itu.
                   </p>
                 </div>
                 <div>
@@ -643,6 +691,18 @@ export default function TasksTab() {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+                <div>
+                  <Label>Tanggal mulai muncul (opsional)</Label>
+                  <Input
+                    type="date"
+                    value={editTaskStartDate}
+                    onChange={(e) => setEditTaskStartDate(e.target.value)}
+                    className="bg-white/70 border-slate-200 text-slate-800"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">
+                    Kosongkan jika tugas langsung berlaku hari ini.
+                  </p>
                 </div>
                 <div>
                   <Label>Prioritas</Label>
@@ -872,6 +932,7 @@ export default function TasksTab() {
                               </Badge>
                               {linkedSubGoalLabel && <span>{linkedSubGoalLabel}</span>}
                               {!linkedSubGoalLabel && <span>Task umum</span>}
+                              {task.start_date && task.start_date > getTodayDateInputValue() && <span>Mulai {formatTaskStartDate(task.start_date)}</span>}
                               {task.due_date && <span>Batas {new Date(task.due_date).toLocaleDateString('id-ID')}</span>}
                               {task.is_daily && <span>{getRecurrenceLabel(getTaskRecurrenceDays(task))}</span>}
                               {task.is_private && <span className="inline-flex items-center gap-1"><Shield className="h-3 w-3" /> Privat</span>}
@@ -892,9 +953,11 @@ export default function TasksTab() {
                             variant="ghost"
                             size="sm"
                             onClick={() => confirm({
-                              title: 'Hapus tugas?',
-                              description: 'Tugas ini akan dihapus dari daftar produktivitas.',
-                              onConfirm: () => deleteTask(task.id),
+                              title: task.is_daily ? 'Hapus tugas untuk hari ini?' : 'Hapus tugas?',
+                              description: task.is_daily
+                                ? 'Tugas berulang ini hanya dihapus dari tampilan hari ini. Hari lain tetap muncul sesuai jadwal.'
+                                : 'Tugas ini akan dihapus dari daftar produktivitas.',
+                              onConfirm: () => deleteTask(task),
                             })}
                             className={`${compactIconButtonClass} text-red-600 hover:text-red-700`}
                             title="Hapus tugas"

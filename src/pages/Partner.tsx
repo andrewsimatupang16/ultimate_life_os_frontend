@@ -16,13 +16,13 @@ import LoadingState from '@/components/LoadingState';
 import { useToast } from '@/hooks/use-toast';
 import {
   Users, UserPlus, CheckCircle2, XCircle, Trophy, Coins, Star,
-  Target, Zap, Loader2, ShieldCheck, Clock, Unlink2,
+  Target, Zap, Loader2, Clock, Unlink2,
 } from 'lucide-react';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
 import { useLanguage } from '@/context/LanguageContext';
 
-const compactGridClass = "modern-grid";
+const compactGridClass = "grid grid-cols-1 gap-4 xl:grid-cols-2 2xl:grid-cols-3";
 
 const defaultSharingScope: PartnerSharingScope = {
   consent_required: true,
@@ -252,30 +252,18 @@ export default function Partner() {
   return (
     <div className="page-shell">
       <div className="page-hero">
-        <p className="page-hero-eyebrow">Growth Partner</p>
-        <h1 className="page-hero-title">Grow bareng tanpa fitur sosial yang ribet</h1>
-        <p className="page-hero-copy">Hubungkan akun untuk saling melihat progres, goal, habit, dan ringkasan disiplin. Fokusnya memantau perkembangan, bukan chat atau feed.</p>
+        <h1 className="page-hero-title">Partner</h1>
       </div>
 
       {/* Send Request */}
       <Card className="border-slate-200 bg-[#F8FAFC]">
         <CardContent className="space-y-4 p-4">
-          <div className="partner-sharing-panel rounded-xl border border-blue-100 bg-blue-50/70 p-3">
-            <div className="flex items-start gap-2">
-              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
-              <div className="space-y-2">
-                <div>
-                  <p className="partner-sharing-title text-sm font-semibold text-slate-800">
-                    {t('Persetujuan berbagi dashboard partner')}
-                  </p>
-                  <p className="partner-sharing-copy text-xs leading-5 text-slate-600">{t(sharingScope.visibility_note)}</p>
-                </div>
-                <SharedDataList items={sharingScope.shared_data} />
-              </div>
-            </div>
+          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/65 px-3 py-2">
+            <span className="text-xs font-semibold text-slate-500">{t('Data partner')}</span>
+            <SharedDataList items={sharingScope.shared_data} compact />
           </div>
 
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <StatusSummary label="Aktif" value={acceptedConnections.length} className="text-emerald-700" />
             <StatusSummary label="Menunggu Anda" value={pendingReceived.length} className="text-amber-700" />
             <StatusSummary label="Terkirim" value={pendingSent.length} className="text-blue-700" />
@@ -284,7 +272,7 @@ export default function Partner() {
 
           <label
             htmlFor="partner-consent"
-            className={`partner-consent-box flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition ${
+            className={`partner-consent-box flex cursor-pointer items-center gap-3 rounded-2xl border px-3 py-2 transition ${
               consentAcknowledged
                 ? 'border-blue-300 bg-blue-50/80'
                 : 'border-slate-200 bg-white/70 hover:border-blue-300 hover:bg-blue-50/60'
@@ -296,17 +284,12 @@ export default function Partner() {
               onCheckedChange={(checked) => setConsentAcknowledged(checked === true)}
               className="partner-consent-checkbox mt-0.5 h-5 w-5 rounded-md border-2"
             />
-            <span className="block min-w-0">
-              <span className="partner-consent-title block text-xs font-semibold text-slate-800">
-                {t('Saya menyetujui berbagi dashboard dengan partner')}
-              </span>
-              <span className="partner-consent-copy mt-1 block text-xs leading-5 text-slate-600">
-                {t('Ketika koneksi diterima, partner dapat melihat profil, produktivitas, dan dashboard keuangan saya sesuai daftar di atas. Saya juga dapat melihat dashboard partner sampai salah satu pihak memutus koneksi.')}
-              </span>
+            <span className="block min-w-0 text-xs font-semibold text-slate-800">
+              {t('Setuju berbagi dashboard dengan partner')}
             </span>
           </label>
 
-          <form onSubmit={(event) => { event.preventDefault(); void sendRequest(); }} className="flex flex-col gap-3 sm:flex-row">
+          <form onSubmit={(event) => { event.preventDefault(); void sendRequest(); }} className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto]">
             <Input
               value={friendCode}
               onChange={(e) => setFriendCode(normalizeFriendCodeInput(e.target.value))}
@@ -322,9 +305,6 @@ export default function Partner() {
               {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <><UserPlus className="w-4 h-4 mr-1" /> {t('Kirim Permintaan')}</>}
             </Button>
           </form>
-          <p className="text-xs leading-5 text-slate-500">
-            {t('Tekan persetujuan, masukkan kode teman, lalu gunakan halaman ini sebagai cermin progres bersama.')}
-          </p>
         </CardContent>
       </Card>
 
@@ -381,7 +361,7 @@ export default function Partner() {
                 <Card key={conn.id} className="border-slate-200 bg-[#F8FAFC] py-0 gap-0 rounded-2xl">
                   <CardContent className="px-2 py-4 flex flex-wrap items-center justify-between gap-2">
                     <div className="flex min-w-0 items-center gap-2">
-                      <Avatar className="h-9 w-9 shrink-0 border border-slate-200">
+                      <Avatar className="h-12 w-12 shrink-0 border border-slate-200">
                         <AvatarImage src={requester.avatar_url || ''} />
                         <AvatarFallback className="bg-white/60 text-slate-700">
                           {requester.full_name?.[0] || 'U'}
@@ -478,9 +458,9 @@ function SharedDataList({
   const { t } = useLanguage();
 
   return (
-    <div className={compact ? 'mt-2 flex flex-wrap gap-2' : 'grid gap-2 sm:grid-cols-3'}>
+    <div className={compact ? 'flex flex-wrap gap-2' : 'grid gap-2 sm:grid-cols-3'}>
       {items.map((item) => (
-        <div key={item.key} className={compact ? 'partner-sharing-chip rounded-full bg-white/80 px-2 py-1 text-xs text-slate-600' : 'partner-sharing-item rounded-lg bg-white/80 p-2'}>
+        <div key={item.key} className={compact ? 'partner-sharing-chip rounded-full bg-slate-100/85 px-2.5 py-1 text-xs font-medium text-slate-600' : 'partner-sharing-item rounded-lg bg-white/80 p-2'}>
           <p className={compact ? 'font-medium' : 'partner-sharing-item-title text-xs font-semibold text-slate-700'}>{t(item.label)}</p>
           {!compact && <p className="partner-sharing-item-copy mt-1 text-xs leading-5 text-slate-500">{t(item.description)}</p>}
         </div>
@@ -509,18 +489,18 @@ function ConnectionStatusCard({
   const statusClass = isPending ? 'bg-amber-50 text-amber-700 hover:bg-amber-50' : 'bg-red-50 text-red-700 hover:bg-red-50';
 
   return (
-    <Card className="border-slate-200 bg-[#F8FAFC] py-0 gap-0 rounded-2xl">
-      <CardContent className="space-y-3 px-3 py-4">
+    <Card className="border-slate-200 bg-[#F8FAFC] py-0 gap-0 rounded-3xl">
+      <CardContent className="space-y-4 p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
-            <Avatar className="h-9 w-9 shrink-0 border border-slate-200">
+            <Avatar className="h-12 w-12 shrink-0 border border-slate-200">
               <AvatarImage src={partner.avatar_url || ''} />
               <AvatarFallback className="bg-white/60 text-slate-700">
                 {partner.full_name?.[0] || 'U'}
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0">
-              <p className="truncate text-xs font-semibold text-slate-800">{partner.full_name || t('Pengguna')}</p>
+              <p className="truncate text-sm font-semibold text-slate-800">{partner.full_name || t('Pengguna')}</p>
               <p className="text-xs text-slate-500">
                 {t(isSentByCurrentUser ? 'Permintaan dikirim' : 'Permintaan diterima')}: {formatConnectionDate(connection.created_at, language)}
               </p>
@@ -619,11 +599,11 @@ function PartnerCard({
 
   return (
     <>
-      <Card className="border-slate-200 bg-[#F8FAFC] py-0 gap-0 rounded-2xl">
-        <CardContent className="px-2 py-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex min-w-0 items-center gap-2">
-              <Avatar className="h-10 w-10 shrink-0 border-2 border-blue-500">
+      <Card className="border-slate-200 bg-[#F8FAFC] py-0 gap-0 rounded-3xl">
+        <CardContent className="p-5">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-4">
+              <Avatar className="h-14 w-14 shrink-0 border-2 border-blue-500">
                 <AvatarImage src={partner.avatar_url || ''} />
                 <AvatarFallback className="bg-white/60 text-slate-700">
                   {partner.full_name?.[0] || 'U'}
@@ -631,21 +611,21 @@ function PartnerCard({
               </Avatar>
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="truncate text-xs font-semibold text-slate-800">{partner.full_name || t('Pengguna')}</p>
+                  <p className="truncate text-sm font-semibold text-slate-800">{partner.full_name || t('Pengguna')}</p>
                   <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50">{t('Aktif')}</Badge>
                 </div>
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
-                  <span className="flex items-center gap-1"><Trophy className="w-3 h-3 text-amber-600" /> Lv.{partner.level}</span>
-                  <span className="flex items-center gap-1"><Star className="w-3 h-3 text-purple-600" /> {partner.xp_balance} XP</span>
-                  <span className="flex items-center gap-1"><Coins className="w-3 h-3 text-amber-600" /> {partner.coin_balance}</span>
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                  <span className="rounded-full bg-amber-50 px-2.5 py-1 font-medium text-amber-700"><Trophy className="mr-1 inline h-3 w-3" />Lv.{partner.level}</span>
+                  <span className="rounded-full bg-purple-50 px-2.5 py-1 font-medium text-purple-700"><Star className="mr-1 inline h-3 w-3" />{partner.xp_balance} XP</span>
+                  <span className="rounded-full bg-blue-50 px-2.5 py-1 font-medium text-blue-700"><Coins className="mr-1 inline h-3 w-3" />{partner.coin_balance}</span>
                 </div>
               </div>
             </div>
-            <div className="flex shrink-0 flex-wrap gap-1">
-              <Button size="sm" variant="outline" onClick={() => setViewOpen(true)} className="h-7 px-2 text-xs border-blue-500 text-blue-600 hover:bg-blue-50">
+            <div className="flex shrink-0 flex-wrap gap-2">
+              <Button size="sm" variant="outline" onClick={() => setViewOpen(true)} className="h-9 rounded-xl border-blue-500 px-3 text-xs text-blue-600 hover:bg-blue-50">
                 <Target className="w-3.5 h-3.5 mr-1" /> {t('Lihat progress')}
               </Button>
-              <Button size="sm" variant="ghost" onClick={onDisconnect} className="h-7 px-2 text-xs text-red-600 hover:text-red-700">
+              <Button size="sm" variant="ghost" onClick={onDisconnect} className="h-9 rounded-xl px-3 text-xs text-red-600 hover:text-red-700">
                 <Unlink2 className="w-3.5 h-3.5 mr-1" /> {t('Putuskan')}
               </Button>
             </div>
@@ -655,7 +635,7 @@ function PartnerCard({
 
       {/* View Partner Dialog */}
       <Dialog open={viewOpen} onOpenChange={setViewOpen}>
-        <DialogContent className="border-slate-200 bg-[#F8FAFC] text-slate-800 max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-h-[86vh] overflow-y-auto border-slate-200 bg-[#F8FAFC] text-slate-800 sm:max-w-6xl">
           <DialogHeader>
             <DialogTitle className="flex flex-wrap items-center gap-2">
               <Avatar className="h-8 w-8">
@@ -666,12 +646,9 @@ function PartnerCard({
             </DialogTitle>
           </DialogHeader>
 
-          <div className="partner-sharing-panel rounded-xl border border-blue-100 bg-blue-50/70 p-3">
-            <p className="partner-sharing-title text-xs font-semibold text-slate-800">{t('Data yang sedang dibagikan dalam koneksi ini')}</p>
+          <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-white/70 px-3 py-2">
+            <span className="text-xs font-semibold text-slate-500">{t('Dibagikan')}</span>
             <SharedDataList items={sharingScope.shared_data} compact />
-            <p className="partner-sharing-copy mt-2 text-xs leading-5 text-slate-600">
-              {t('Akses dua arah ini berhenti ketika salah satu pihak menekan Putuskan.')}
-            </p>
           </div>
 
           <Tabs value={viewTab} onValueChange={(v) => {
@@ -783,7 +760,7 @@ function PartnerProductivityPanel({ productivity }: { productivity: PartnerProdu
         {activeGoal && <Progress value={clampPercent(activeGoal.progress_rate)} className="mt-3 h-2 bg-white/80" />}
       </div>
 
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <PartnerMiniStat label="Goal" value={goals.length} />
         <PartnerMiniStat label="Detail goal" value={totalSubGoals} />
         <PartnerMiniStat label="Task selesai" value={`${taskRate}%`} />
@@ -927,21 +904,32 @@ function PartnerFinancePanel({ finance, language }: { finance: PartnerFinanceVie
   const bills = finance.bills ?? [];
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <PartnerMiniStat label="Total saldo" value={formatPartnerCurrency(finance.summary?.total_balance)} />
-        <PartnerMiniStat label="Pemasukan" value={formatPartnerCurrency(finance.summary?.total_income)} />
-        <PartnerMiniStat label="Pengeluaran" value={formatPartnerCurrency(finance.summary?.total_expense)} />
-        <PartnerMiniStat label="Saldo bersih" value={formatPartnerCurrency(finance.summary?.net)} />
-      </div>
+    <div className="space-y-5">
+      <section className="rounded-3xl border border-slate-200/80 bg-white/80 p-5 shadow-sm">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-600">{t('Keuangan')}</p>
+            <h4 className="mt-1 text-base font-semibold text-slate-800">{t('Ringkasan keuangan')}</h4>
+          </div>
+          <p className="text-xs text-slate-500">{t('Data partner')}</p>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-4">
+          <PartnerFinanceStat label="Total saldo" value={formatPartnerCurrency(finance.summary?.total_balance)} tone="blue" />
+          <PartnerFinanceStat label="Saldo bersih" value={formatPartnerCurrency(finance.summary?.net)} tone="slate" />
+          <PartnerFinanceStat label="Pemasukan" value={formatPartnerCurrency(finance.summary?.total_income)} tone="emerald" />
+          <PartnerFinanceStat label="Pengeluaran" value={formatPartnerCurrency(finance.summary?.total_expense)} tone="red" />
+        </div>
+      </section>
 
       <section className="space-y-2">
         <h4 className="text-sm font-semibold text-slate-700">{t('Dompet')}</h4>
         {wallets.length === 0 ? (
           <p className="rounded-xl bg-white/60 p-3 text-sm text-slate-500">{t('Belum ada dompet yang dibagikan')}</p>
         ) : (
-          wallets.map((wallet) => (
-            <div key={wallet.id} className="rounded-xl bg-white/60 p-3">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+          {wallets.map((wallet) => (
+            <div key={wallet.id} className="rounded-2xl bg-white/70 p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-sm font-semibold text-slate-800">{wallet.name}</p>
                 <p className="text-sm font-semibold text-amber-600">{formatPartnerCurrency(wallet.balance)}</p>
@@ -949,7 +937,8 @@ function PartnerFinancePanel({ finance, language }: { finance: PartnerFinanceVie
               <p className="mt-1 text-xs text-slate-500">{t('Jenis')}: {t(wallet.wallet_type)}</p>
               <p className="mt-2 text-xs font-medium text-slate-600">{t('Transaksi di dompet ini')}: {wallet.transactions?.length ?? 0}</p>
             </div>
-          ))
+          ))}
+          </div>
         )}
       </section>
 
@@ -958,8 +947,9 @@ function PartnerFinancePanel({ finance, language }: { finance: PartnerFinanceVie
         {transactions.length === 0 ? (
           <p className="rounded-xl bg-white/60 p-3 text-sm text-slate-500">{t('Belum ada transaksi yang dibagikan')}</p>
         ) : (
-          transactions.map((transaction) => (
-            <div key={transaction.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-white/60 p-3">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+          {transactions.map((transaction) => (
+            <div key={transaction.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white/70 p-4">
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-slate-800">{transaction.category}</p>
                 <p className="text-xs text-slate-500">{formatPartnerDate(transaction.transaction_date, language)}{transaction.description ? ` - ${transaction.description}` : ''}</p>
@@ -968,7 +958,8 @@ function PartnerFinancePanel({ finance, language }: { finance: PartnerFinanceVie
                 {transaction.type === 'income' ? '+' : '-'} {formatPartnerCurrency(transaction.amount)}
               </p>
             </div>
-          ))
+          ))}
+          </div>
         )}
       </section>
 
@@ -977,10 +968,11 @@ function PartnerFinancePanel({ finance, language }: { finance: PartnerFinanceVie
         {budgets.length === 0 ? (
           <p className="rounded-xl bg-white/60 p-3 text-sm text-slate-500">{t('Belum ada anggaran yang dibagikan')}</p>
         ) : (
-          budgets.map((budget) => {
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+          {budgets.map((budget) => {
             const usage = getBudgetUsageRate(budget);
             return (
-              <div key={budget.id} className="rounded-xl bg-white/60 p-3">
+              <div key={budget.id} className="rounded-2xl bg-white/70 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-sm font-semibold text-slate-800">{budget.category}</p>
                   <span className="text-xs font-semibold text-slate-600">{usage.toFixed(0)}%</span>
@@ -991,7 +983,8 @@ function PartnerFinancePanel({ finance, language }: { finance: PartnerFinanceVie
                 <Progress value={usage} className="mt-2 h-1.5 bg-slate-200" />
               </div>
             );
-          })
+          })}
+          </div>
         )}
       </section>
 
@@ -1000,8 +993,9 @@ function PartnerFinancePanel({ finance, language }: { finance: PartnerFinanceVie
         {bills.length === 0 ? (
           <p className="rounded-xl bg-white/60 p-3 text-sm text-slate-500">{t('Belum ada tagihan yang dibagikan')}</p>
         ) : (
-          bills.map((bill) => (
-            <div key={bill.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-white/60 p-3">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+          {bills.map((bill) => (
+            <div key={bill.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white/70 p-4">
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-slate-800">{bill.title}</p>
                 <p className="text-xs text-slate-500">{bill.category} - {t('Jatuh tempo')}: {formatPartnerDate(bill.due_date, language)}</p>
@@ -1013,7 +1007,8 @@ function PartnerFinancePanel({ finance, language }: { finance: PartnerFinanceVie
                 </Badge>
               </div>
             </div>
-          ))
+          ))}
+          </div>
         )}
       </section>
     </div>
@@ -1028,7 +1023,7 @@ function PartnerAnalyticsPanel({ analytics, language }: { analytics: DashboardSu
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <PartnerMiniStat label="Life score" value={`${Math.round(analytics.life_score || 0)}%`} />
         <PartnerMiniStat label="Produktivitas" value={`${Math.round(analytics.productivity_score || 0)}%`} />
         <PartnerMiniStat label="Keuangan" value={`${Math.round(analytics.finance_score || 0)}%`} />
@@ -1107,13 +1102,45 @@ function PartnerAnalyticsPanel({ analytics, language }: { analytics: DashboardSu
   );
 }
 
-function PartnerMiniStat({ label, value }: { label: string; value: number | string }) {
+function PartnerFinanceStat({ label, value, tone }: { label: string; value: string; tone: 'blue' | 'emerald' | 'red' | 'slate' }) {
   const { t } = useLanguage();
+  const toneClass = {
+    blue: 'border-blue-100 bg-blue-50/80 text-blue-700',
+    emerald: 'border-emerald-100 bg-emerald-50/80 text-emerald-700',
+    red: 'border-red-100 bg-red-50/80 text-red-700',
+    slate: 'border-slate-200 bg-slate-50/85 text-slate-700',
+  }[tone];
 
   return (
-    <div className="rounded-xl bg-white/70 p-3">
-      <p className="truncate text-sm font-bold text-slate-800">{value}</p>
-      <p className="mt-1 text-xs text-slate-500">{t(label)}</p>
+    <div className={`min-w-0 rounded-[1.5rem] border p-5 shadow-sm ${toneClass}`}>
+      <div className="flex items-center gap-2">
+        <span className="h-2.5 w-2.5 rounded-full bg-current opacity-70" />
+        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] opacity-80">{t(label)}</p>
+      </div>
+      <p
+        title={value}
+        className="mt-3 whitespace-normal break-words text-[clamp(1.18rem,2vw,1.75rem)] font-bold leading-tight tracking-tight tabular-nums"
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function PartnerMiniStat({ label, value }: { label: string; value: number | string }) {
+  const { t } = useLanguage();
+  const displayValue = String(value ?? '-');
+  const isLongValue = displayValue.length > 13;
+
+  return (
+    <div className="min-w-0 rounded-[1.4rem] border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur-sm">
+      <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-500">{t(label)}</p>
+      <p
+        title={displayValue}
+        className={`mt-3 break-words font-bold leading-tight tracking-tight text-slate-800 ${isLongValue ? 'text-lg sm:text-xl' : 'text-2xl'}`}
+      >
+        {displayValue}
+      </p>
     </div>
   );
 }

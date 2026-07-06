@@ -18,105 +18,164 @@ export default function Layout() {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useThemeMode();
   const { language, toggleLanguage, t } = useLanguage();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const displayName = user?.full_name?.trim() || t('Pengguna');
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const displayName = user?.full_name?.trim() || t('Life OS');
 
-  const closeSidebar = () => setSidebarOpen(false);
+  const closeMobileNav = () => setMobileNavOpen(false);
+
+  const renderMenuItems = (onClick?: () => void) => (
+    <nav className="space-y-1.5">
+      {menu.map((item) => {
+        const Icon = item.icon;
+        return (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            onClick={onClick}
+            className={({ isActive }) =>
+              `app-nav-item group/nav flex items-center gap-3 rounded-2xl px-3 py-3 text-sm font-semibold transition ${
+                isActive ? 'app-nav-item-active' : 'app-nav-item-idle'
+              }`
+            }
+          >
+            <Icon className="h-4 w-4 shrink-0" />
+            <span>{t(item.label)}</span>
+          </NavLink>
+        );
+      })}
+    </nav>
+  );
 
   return (
-    <div className="app-shell min-h-screen text-slate-700">
-      <button
-        type="button"
-        onClick={() => setSidebarOpen(true)}
-        onMouseEnter={() => setSidebarOpen(true)}
-        className={`app-menu-button fixed left-5 top-5 z-[80] flex h-10 min-w-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white/95 px-3 text-slate-700 transition hover:border-blue-200 hover:text-blue-600 lg:left-6 lg:top-6 ${
-          sidebarOpen ? 'pointer-events-none opacity-0' : 'opacity-100'
-        }`}
-        aria-label={t('Buka navigasi')}
-      >
-        <Menu className="h-5 w-5" />
-        <span className="hidden text-sm font-semibold sm:inline">{t('Menu')}</span>
-      </button>
-
-      <div className="app-top-actions fixed right-4 top-4 z-[70] flex items-center gap-2">
+    <div className="app-shell min-h-screen text-slate-700 dark:text-slate-100">
+      <header className="app-mobile-header fixed inset-x-3 top-3 z-[70] flex items-center justify-between rounded-3xl px-3 py-2 backdrop-blur-2xl lg:hidden">
         <button
           type="button"
-          onClick={toggleTheme}
-          className="theme-toggle flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-[#F8FAFC] px-3 text-sm font-semibold text-slate-600 transition hover:border-blue-200 hover:text-blue-600"
-          aria-label={theme === 'dark' ? t('Aktifkan mode terang') : t('Aktifkan mode gelap')}
+          onClick={() => setMobileNavOpen(true)}
+          className="app-nav-primary-button flex h-10 w-10 items-center justify-center rounded-2xl transition hover:scale-[1.02] active:scale-95"
+          aria-label={t('Buka navigasi')}
         >
-          {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          <span className="hidden sm:inline">{theme === 'dark' ? t('Terang') : t('Gelap')}</span>
+          <Menu className="h-5 w-5" />
         </button>
-        <button
-          type="button"
-          onClick={toggleLanguage}
-          className="theme-toggle flex h-10 items-center rounded-xl border border-slate-200 bg-[#F8FAFC] px-3 text-sm font-semibold text-slate-600 transition hover:border-blue-200 hover:text-blue-600"
-          aria-label={language === 'id' ? 'Switch to English' : 'Ganti ke bahasa Indonesia'}
-        >
-          {language === 'id' ? 'EN' : 'ID'}
-        </button>
-      </div>
-
-      {sidebarOpen && (
-        <button
-          type="button"
-          aria-label={t('Tutup navigasi')}
-          className="fixed inset-0 z-[85] bg-slate-950/20 lg:hidden"
-          onClick={closeSidebar}
-        />
-      )}
-
-      <aside
-        onMouseEnter={() => setSidebarOpen(true)}
-        onMouseLeave={closeSidebar}
-        className={`app-sidebar fixed bottom-5 left-5 top-5 z-[90] flex w-[min(17rem,calc(100vw-3rem))] flex-col p-4 transition-all duration-300 lg:bottom-6 lg:left-6 lg:top-6 ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-[calc(100%+2rem)]'
-        }`}
-        aria-hidden={!sidebarOpen}
-      >
-        <div className="mb-8 flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="text-xl font-bold text-slate-800">Life OS</h1>
-            <p className="truncate text-sm text-slate-500">{displayName}</p>
-          </div>
+        <div className="min-w-0 px-3 text-center">
+          <p className="truncate text-sm font-extrabold tracking-tight text-slate-900 dark:text-white">{displayName}</p>
+          <p className="text-[11px] font-medium text-slate-400">Life OS</p>
+        </div>
+        <div className="flex items-center gap-1">
           <button
             type="button"
-            onClick={closeSidebar}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-blue-200 hover:text-blue-600"
-            aria-label={t('Tutup navigasi')}
+            onClick={toggleTheme}
+            className="flex h-10 w-10 items-center justify-center rounded-2xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
+            aria-label={theme === 'dark' ? t('Aktifkan mode terang') : t('Aktifkan mode gelap')}
           >
-            <X className="h-4 w-4" />
+            {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </button>
+          <button
+            type="button"
+            onClick={toggleLanguage}
+            className="flex h-10 min-w-10 items-center justify-center rounded-2xl px-2 text-xs font-extrabold text-slate-500 transition hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
+            aria-label={language === 'id' ? 'Switch to English' : 'Ganti ke bahasa Indonesia'}
+          >
+            {language === 'id' ? 'EN' : 'ID'}
           </button>
         </div>
-        <nav className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+      </header>
+
+      <aside className="app-desktop-sidebar group/sidebar fixed bottom-5 left-5 top-5 z-[60] hidden w-20 overflow-hidden rounded-[2rem] p-3 backdrop-blur-2xl transition-[width] duration-300 hover:w-72 lg:flex lg:flex-col">
+        <div className="mb-5 flex h-12 items-center gap-3 rounded-2xl px-2">
+          <div className="app-nav-avatar flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-sm font-black">
+            {displayName.slice(0, 1).toUpperCase()}
+          </div>
+          <div className="min-w-0 opacity-0 transition-opacity duration-200 group-hover/sidebar:opacity-100">
+            <h1 className="truncate text-sm font-extrabold text-slate-900 dark:text-white">{displayName}</h1>
+            <p className="text-xs font-medium text-slate-400">Life OS</p>
+          </div>
+        </div>
+
+        <nav className="min-h-0 flex-1 space-y-1.5 overflow-y-auto overflow-x-hidden pr-0.5">
           {menu.map((item) => {
             const Icon = item.icon;
             return (
               <NavLink
                 key={item.to}
                 to={item.to}
-                onClick={closeSidebar}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
-                    isActive
-                      ? 'bg-[#2563EB] text-white'
-                      : 'text-slate-600 hover:bg-slate-100 hover:text-blue-600'
+                  `app-nav-item flex h-12 items-center gap-3 rounded-2xl px-3 text-sm font-semibold transition ${
+                    isActive ? 'app-nav-item-active' : 'app-nav-item-idle'
                   }`
                 }
+                title={t(item.label)}
               >
-                <Icon className="h-4 w-4" />
-                {t(item.label)}
+                <Icon className="h-5 w-5 shrink-0" />
+                <span className="whitespace-nowrap opacity-0 transition-opacity duration-200 group-hover/sidebar:opacity-100">{t(item.label)}</span>
               </NavLink>
             );
           })}
         </nav>
-        <Button onClick={logout} variant="ghost" className="mt-4 justify-start text-slate-500 hover:text-blue-600">
+
+        <div className="mt-4 space-y-2">
+          <div className="flex gap-2 opacity-0 transition-opacity duration-200 group-hover/sidebar:opacity-100">
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="flex h-10 flex-1 items-center justify-center gap-2 rounded-2xl bg-slate-100 text-xs font-bold text-slate-600 transition hover:bg-slate-200 dark:bg-white/10 dark:text-slate-200 dark:hover:bg-white/15"
+              aria-label={theme === 'dark' ? t('Aktifkan mode terang') : t('Aktifkan mode gelap')}
+            >
+              {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              {theme === 'dark' ? t('Terang') : t('Gelap')}
+            </button>
+            <button
+              type="button"
+              onClick={toggleLanguage}
+              className="flex h-10 w-12 items-center justify-center rounded-2xl bg-slate-100 text-xs font-extrabold text-slate-600 transition hover:bg-slate-200 dark:bg-white/10 dark:text-slate-200 dark:hover:bg-white/15"
+              aria-label={language === 'id' ? 'Switch to English' : 'Ganti ke bahasa Indonesia'}
+            >
+              {language === 'id' ? 'EN' : 'ID'}
+            </button>
+          </div>
+          <Button onClick={logout} variant="ghost" className="h-12 w-full justify-start rounded-2xl px-3 text-slate-500 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white">
+            <LogOut className="mr-3 h-5 w-5 shrink-0" />
+            <span className="whitespace-nowrap opacity-0 transition-opacity duration-200 group-hover/sidebar:opacity-100">{t('Keluar')}</span>
+          </Button>
+        </div>
+      </aside>
+
+      {mobileNavOpen && (
+        <button
+          type="button"
+          aria-label={t('Tutup navigasi')}
+          className="fixed inset-0 z-[80] bg-slate-950/35 backdrop-blur-sm lg:hidden"
+          onClick={closeMobileNav}
+        />
+      )}
+
+      <aside
+        className={`app-mobile-sidebar fixed bottom-3 left-3 top-3 z-[90] flex w-[min(20rem,calc(100vw-1.5rem))] flex-col rounded-[2rem] p-4 backdrop-blur-2xl transition-transform duration-300 lg:hidden ${
+          mobileNavOpen ? 'translate-x-0' : '-translate-x-[calc(100%+1rem)]'
+        }`}
+        aria-hidden={!mobileNavOpen}
+      >
+        <div className="mb-6 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate text-base font-extrabold text-slate-900 dark:text-white">{displayName}</p>
+            <p className="text-xs font-medium text-slate-400">Navigasi</p>
+          </div>
+          <button
+            type="button"
+            onClick={closeMobileNav}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-slate-950 dark:bg-white/10 dark:text-slate-300 dark:hover:bg-white/15 dark:hover:text-white"
+            aria-label={t('Tutup navigasi')}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto pr-1">{renderMenuItems(closeMobileNav)}</div>
+        <Button onClick={logout} variant="ghost" className="mt-4 justify-start rounded-2xl text-slate-500 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white">
           <LogOut className="mr-2 h-4 w-4" /> {t('Keluar')}
         </Button>
       </aside>
 
-      <main className="app-main px-4 pb-4 pt-20 lg:px-6 lg:pb-6">
+      <main className="app-main px-4 pb-6 pt-24 lg:pl-28 lg:pr-8 lg:pt-8 xl:pr-10">
         <Outlet />
       </main>
     </div>

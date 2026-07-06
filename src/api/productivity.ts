@@ -139,6 +139,11 @@ export const habitApi = {
     return data;
   },
 
+  unlogDate: async (id: string, localDate: string): Promise<HabitLogResponse> => {
+    const { data } = await api.delete<HabitLogResponse>(`/productivity/habits/${id}/log-date/${localDate}`);
+    return data;
+  },
+
   history: async (id: string): Promise<HabitHistoryItem[]> => {
     const { data } = await api.get<HabitHistoryItem[]>(`/productivity/habits/${id}/history`);
     return data;

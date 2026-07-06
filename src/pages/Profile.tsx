@@ -75,7 +75,8 @@ export default function Profile() {
       const updateData: UserUpdate = {};
       if (fullName !== user?.full_name) updateData.full_name = fullName;
       if (email !== user?.email) updateData.email = email;
-      if (avatarUrl !== user?.avatar_url) updateData.avatar_url = avatarUrl;
+      const normalizedAvatarUrl = avatarUrl.trim();
+      if (normalizedAvatarUrl !== (user?.avatar_url || '')) updateData.avatar_url = normalizedAvatarUrl;
       if (password.trim()) updateData.password = password;
 
       if (Object.keys(updateData).length === 0) {
@@ -120,7 +121,7 @@ export default function Profile() {
           <div className="flex flex-col sm:flex-row items-center gap-6">
             <div className="relative">
               <Avatar className="h-24 w-24 border-4 border-blue-500">
-                <AvatarImage src={avatarUrl || user.avatar_url || ''} />
+                <AvatarImage src={avatarUrl.trim() || user.avatar_url || ''} />
                 <AvatarFallback className="bg-white/60 text-slate-700 text-3xl">
                   {user.full_name?.[0] || user.email[0]}
                 </AvatarFallback>
@@ -213,7 +214,7 @@ export default function Profile() {
                   placeholder="https://example.com/avatar.jpg"
                   className="bg-white/70 border-slate-200 text-slate-800"
                 />
-                <p className="text-xs text-slate-500 mt-1">Masukkan link gambar yang bisa diakses publik.</p>
+                <p className="mt-1 text-xs text-slate-500">Gunakan link gambar publik. Link Google Drive dan Dropbox umum akan dicoba otomatis.</p>
               </div>
               <Separator className="bg-white/60" />
               <div>

@@ -4,6 +4,7 @@ import type { Habit, HabitHistoryItem, HabitLogResponse } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -86,22 +87,14 @@ const getHabitLogMessage = (habit: Habit, result: HabitLogResponse) => {
 
 const getBadHabitPenaltySummary = (habit: Habit) => {
   const previewPenalty = Number(habit.bad_habit_penalty_preview ?? 0);
-  const basePenalty = Number(habit.bad_habit_base_penalty ?? 0);
-  const multiplier = Number(habit.bad_habit_penalty_multiplier ?? 1);
-  const threshold = Number(habit.bad_habit_penalty_threshold ?? 0);
-  const windowDays = Number(habit.bad_habit_penalty_window_days ?? 0);
-  const recentCount = Number(habit.bad_habit_recent_penalty_count ?? 0);
 
-  if (previewPenalty <= 0 || threshold <= 0 || windowDays <= 0) {
-    return 'Penalti akan dihitung otomatis saat dicatat.';
+  if (previewPenalty > 0) {
+    return `Penalti berikutnya: -${previewPenalty} koin`;
   }
 
-  if (habit.bad_habit_penalty_multiplier_active) {
-    return `Penalti berikutnya: -${previewPenalty} koin (${multiplier}x aktif; ${recentCount} pelanggaran dalam ${windowDays} hari terakhir).`;
-  }
-
-  return `Penalti berikutnya: -${previewPenalty} koin. Penalti dasar: -${basePenalty} koin. Pengali ${multiplier}x aktif mulai ${threshold} pelanggaran dalam ${windowDays} hari terakhir.`;
+  return 'Penalti otomatis';
 };
+
 
 export default function HabitsTab() {
   const { toast } = useToast();
@@ -112,12 +105,14 @@ export default function HabitsTab() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [newHabitTitle, setNewHabitTitle] = useState('');
+  const [newHabitDescription, setNewHabitDescription] = useState('');
   const [newHabitType, setNewHabitType] = useState<'good' | 'bad'>('good');
   const [newHabitReminderTime, setNewHabitReminderTime] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
   const [editHabitTitle, setEditHabitTitle] = useState('');
+  const [editHabitDescription, setEditHabitDescription] = useState('');
   const [editHabitType, setEditHabitType] = useState<'good' | 'bad'>('good');
   const [editHabitReminderTime, setEditHabitReminderTime] = useState('');
   const [habitSearch, setHabitSearch] = useState('');
@@ -172,10 +167,12 @@ export default function HabitsTab() {
     try {
       await habitApi.create({
         title: newHabitTitle.trim(),
+        description: newHabitDescription.trim() || null,
         habit_type: newHabitType,
         reminder_time: newHabitReminderTime || null,
       });
       setNewHabitTitle('');
+      setNewHabitDescription('');
       setNewHabitReminderTime('');
       setDialogOpen(false);
       await loadHabits();
@@ -188,6 +185,7 @@ export default function HabitsTab() {
   const openEditHabitDialog = (habit: Habit) => {
     setEditingHabit(habit);
     setEditHabitTitle(habit.title);
+    setEditHabitDescription(habit.description ?? '');
     setEditHabitType(habit.habit_type);
     setEditHabitReminderTime(habit.reminder_time ?? '');
     setEditDialogOpen(true);
@@ -197,6 +195,7 @@ export default function HabitsTab() {
     setEditDialogOpen(false);
     setEditingHabit(null);
     setEditHabitTitle('');
+    setEditHabitDescription('');
     setEditHabitType('good');
     setEditHabitReminderTime('');
   };
@@ -212,6 +211,7 @@ export default function HabitsTab() {
     try {
       await habitApi.update(editingHabit.id, {
         title: editHabitTitle.trim(),
+        description: editHabitDescription.trim() || null,
         habit_type: editHabitType,
         reminder_time: editHabitReminderTime || null,
       });
@@ -237,7 +237,7 @@ export default function HabitsTab() {
     setLoggingHabitDateKey(null);
   };
 
-  const logHabitDate = async (dateKey: string) => {
+  const toggleHabitDate = async (dateKey: string) => {
     if (!selectedHabit) return;
 
     if (dateKey > getTodayDateKey()) {
@@ -245,28 +245,33 @@ export default function HabitsTab() {
       return;
     }
 
-    const history = habitHistoryById[selectedHabit.id] ?? [];
-    if (history.some((item) => item.local_date === dateKey)) {
-      toast({ title: 'Kebiasaan sudah dicatat pada tanggal ini.' });
-      return;
-    }
-
     if (loggingHabitDateKey) return;
+
+    const history = habitHistoryById[selectedHabit.id] ?? [];
+    const alreadyFilled = history.some((item) => item.local_date === dateKey);
 
     setLoggingHabitDateKey(dateKey);
     try {
-      const result = await habitApi.logDate(selectedHabit.id, dateKey);
+      const result = alreadyFilled
+        ? await habitApi.unlogDate(selectedHabit.id, dateKey)
+        : await habitApi.logDate(selectedHabit.id, dateKey);
 
       if (!result.success) {
-        toast({ title: result.message || 'Kebiasaan sudah dicatat pada tanggal ini.', variant: 'destructive' });
+        toast({
+          title: result.message || (alreadyFilled ? 'Gagal menghapus isian habit.' : 'Kebiasaan sudah dicatat pada tanggal ini.'),
+          variant: 'destructive',
+        });
         await loadHabitHistory(selectedHabit.id);
         return;
       }
 
       await Promise.all([loadHabits(), refreshUser(), loadHabitHistory(selectedHabit.id)]);
-      toast({ title: getHabitLogMessage(selectedHabit, result) });
+      toast({ title: alreadyFilled ? 'Isian habit dihapus.' : getHabitLogMessage(selectedHabit, result) });
     } catch (error) {
-      toast({ title: getApiErrorMessage(error, 'Gagal mencatat kebiasaan'), variant: 'destructive' });
+      toast({
+        title: getApiErrorMessage(error, alreadyFilled ? 'Gagal menghapus isian habit' : 'Gagal mencatat kebiasaan'),
+        variant: 'destructive',
+      });
     } finally {
       setLoggingHabitDateKey(null);
     }
@@ -285,7 +290,10 @@ export default function HabitsTab() {
   const filteredHabits = useMemo(() => {
     const keyword = habitSearch.trim().toLowerCase();
     if (!keyword) return habits;
-    return habits.filter((habit) => habit.title.toLowerCase().includes(keyword));
+    return habits.filter((habit) => {
+      const description = habit.description?.toLowerCase() ?? '';
+      return habit.title.toLowerCase().includes(keyword) || description.includes(keyword);
+    });
   }, [habitSearch, habits]);
 
   const allGoodHabits = useMemo(() => habits.filter(h => h.habit_type === 'good'), [habits]);
@@ -334,6 +342,16 @@ export default function HabitsTab() {
                   value={newHabitTitle}
                   onChange={(e) => setNewHabitTitle(e.target.value)}
                   placeholder="Contoh: Olahraga, Tidak makan gula"
+                  className="bg-white/70 border-slate-200 text-slate-800"
+                />
+              </div>
+              <div>
+                <Label>Deskripsi (opsional)</Label>
+                <Textarea
+                  value={newHabitDescription}
+                  onChange={(e) => setNewHabitDescription(e.target.value)}
+                  placeholder="Contoh: 15 menit jalan kaki sebelum kerja"
+                  rows={3}
                   className="bg-white/70 border-slate-200 text-slate-800"
                 />
               </div>
@@ -402,16 +420,19 @@ export default function HabitsTab() {
               <CardContent className={compactContentClass}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-start gap-3">
-                    <div className="mt-1 h-3 w-3 shrink-0 rounded-full bg-emerald-500" aria-hidden="true" />
+                    <div className="mt-1 h-4 w-4 shrink-0 rounded-full bg-emerald-500" aria-hidden="true" />
                     <div className="min-w-0">
-                      <h4 className={`${compactTitleClass} text-slate-800`}>{habit.title}</h4>
-                      <div className="mt-1 flex flex-wrap gap-1.5 text-xs text-slate-500">
+                      <h4 className={`${compactTitleClass} line-clamp-1 text-slate-800`}>{habit.title}</h4>
+                      {habit.description && (
+                        <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-slate-500">{habit.description}</p>
+                      )}
+                      <div className="mt-1 flex flex-wrap gap-2 text-xs text-slate-500">
                         <span className="flex items-center gap-1">
-                          <Zap className="h-3 w-3 text-amber-400" /> Rangkaian: {habit.current_streak} hari
+                          <Zap className="h-3 w-3 text-amber-400" /> {habit.current_streak} hari
                         </span>
-                        <span>Terbaik: {habit.best_streak}</span>
-                        {habit.reminder_time && <span>Pengingat: {habit.reminder_time}</span>}
-                        {loggedToday && <span className="font-medium text-emerald-600">Sudah dicatat hari ini</span>}
+                        <span>Terbaik {habit.best_streak}</span>
+                        {habit.reminder_time && <span>{habit.reminder_time}</span>}
+                        {loggedToday && <span className="font-medium text-emerald-600">Hari ini terisi</span>}
                       </div>
                     </div>
                   </div>
@@ -445,11 +466,13 @@ export default function HabitsTab() {
                     </Button>
                   </div>
                 </div>
-                <div className="app-list-highlight bg-emerald-50 text-emerald-600">
-                  Total: {habit.total_completions}x · Didapat: {habit.xp_rewarded} XP, {habit.coin_rewarded} koin
+                <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                  <span className="rounded-full bg-emerald-50 px-2.5 py-1 font-medium text-emerald-700">{habit.total_completions}x</span>
+                  <span className="rounded-full bg-blue-50 px-2.5 py-1 font-medium text-blue-700">+{habit.xp_rewarded} XP</span>
+                  <span className="rounded-full bg-amber-50 px-2.5 py-1 font-medium text-amber-700">+{habit.coin_rewarded} koin</span>
                 </div>
-                <div className="mt-2 flex items-center gap-1 text-xs font-medium text-blue-600">
-                  <CalendarDays className="h-3 w-3" /> Klik kartu untuk isi habit di kalender bulan ini
+                <div className="mt-3 flex items-center gap-1 text-[11px] text-slate-400">
+                  <CalendarDays className="h-3 w-3" /> Klik kartu untuk buka kalender
                 </div>
               </CardContent>
             </Card>
@@ -501,13 +524,16 @@ export default function HabitsTab() {
               <CardContent className={compactContentClass}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-start gap-3">
-                    <div className="mt-1 h-3 w-3 shrink-0 rounded-full bg-red-500" aria-hidden="true" />
+                    <div className="mt-1 h-4 w-4 shrink-0 rounded-full bg-red-500" aria-hidden="true" />
                     <div className="min-w-0">
-                      <h4 className={`${compactTitleClass} text-slate-800`}>{habit.title}</h4>
-                      <div className="mt-1 flex flex-wrap gap-1.5 text-xs text-slate-500">
-                        <span>Dicatat: {habit.total_completions}x</span>
-                        {habit.reminder_time && <span>Pengingat: {habit.reminder_time}</span>}
-                        {loggedToday && <span className="font-medium text-red-600">Sudah dicatat hari ini</span>}
+                      <h4 className={`${compactTitleClass} line-clamp-1 text-slate-800`}>{habit.title}</h4>
+                      {habit.description && (
+                        <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-slate-500">{habit.description}</p>
+                      )}
+                      <div className="mt-1 flex flex-wrap gap-2 text-xs text-slate-500">
+                        <span>{habit.total_completions}x dicatat</span>
+                        {habit.reminder_time && <span>{habit.reminder_time}</span>}
+                        {loggedToday && <span className="font-medium text-red-600">Hari ini terisi</span>}
                       </div>
                     </div>
                   </div>
@@ -541,11 +567,12 @@ export default function HabitsTab() {
                     </Button>
                   </div>
                 </div>
-                <div className="app-list-highlight bg-red-50 text-red-600">
-                  {getBadHabitPenaltySummary(habit)}
+                <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                  <span className="rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-700">{habit.total_completions}x dicatat</span>
+                  <span className="rounded-full bg-red-50 px-2.5 py-1 font-medium text-red-700">{getBadHabitPenaltySummary(habit)}</span>
                 </div>
-                <div className="mt-2 flex items-center gap-1 text-xs font-medium text-blue-600">
-                  <CalendarDays className="h-3 w-3" /> Klik kartu untuk isi habit di kalender bulan ini
+                <div className="mt-3 flex items-center gap-1 text-[11px] text-slate-400">
+                  <CalendarDays className="h-3 w-3" /> Klik kartu untuk buka kalender
                 </div>
               </CardContent>
             </Card>
@@ -596,8 +623,11 @@ export default function HabitsTab() {
                 <div>
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Habit dipilih</p>
                   <h4 className="mt-1 text-lg font-semibold text-slate-800">{selectedHabit.title}</h4>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Klik tanggal untuk menandai habit sudah dilakukan pada hari itu. Tanggal masa depan sengaja dikunci, karena mencicil disiplin ke masa depan itu curang versi kalender.
+                  {selectedHabit.description && (
+                    <p className="mt-1 text-sm leading-relaxed text-slate-600">{selectedHabit.description}</p>
+                  )}
+                  <p className="mt-2 text-xs text-slate-500">
+                    Klik tanggal untuk isi. Klik lagi untuk hapus.
                   </p>
                 </div>
                 <div className={`rounded-full px-3 py-1 text-xs font-semibold ${selectedHabit.habit_type === 'good' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
@@ -650,11 +680,11 @@ export default function HabitsTab() {
                     <button
                       key={day.dateKey}
                       type="button"
-                      onClick={() => void logHabitDate(day.dateKey)}
-                      disabled={filled || futureDate || Boolean(loggingHabitDateKey)}
+                      onClick={() => void toggleHabitDate(day.dateKey)}
+                      disabled={futureDate || Boolean(loggingHabitDateKey)}
                       title={
                         filled
-                          ? 'Sudah terisi'
+                          ? 'Klik untuk hapus isian'
                           : futureDate
                             ? 'Tanggal masa depan belum bisa diisi'
                             : `Isi tanggal ${day.day}`
@@ -676,7 +706,7 @@ export default function HabitsTab() {
 
             <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
               <span className="inline-flex items-center gap-1"><span className="h-3 w-3 rounded bg-slate-100 ring-1 ring-slate-200" /> Belum diisi</span>
-              <span className="inline-flex items-center gap-1"><span className={`h-3 w-3 rounded ${selectedHabit.habit_type === 'good' ? 'bg-emerald-500' : 'bg-red-500'}`} /> Sudah diisi</span>
+              <span className="inline-flex items-center gap-1"><span className={`h-3 w-3 rounded ${selectedHabit.habit_type === 'good' ? 'bg-emerald-500' : 'bg-red-500'}`} /> Sudah diisi, klik lagi untuk hapus</span>
               <span className="inline-flex items-center gap-1"><span className="h-3 w-3 rounded bg-slate-200" /> Masa depan dikunci</span>
             </div>
           </div>
@@ -705,6 +735,16 @@ export default function HabitsTab() {
               value={editHabitTitle}
               onChange={(e) => setEditHabitTitle(e.target.value)}
               placeholder="Contoh: Olahraga, Tidak makan gula"
+              className="bg-white/70 border-slate-200 text-slate-800"
+            />
+          </div>
+          <div>
+            <Label>Deskripsi (opsional)</Label>
+            <Textarea
+              value={editHabitDescription}
+              onChange={(e) => setEditHabitDescription(e.target.value)}
+              placeholder="Catatan singkat tentang habit ini"
+              rows={3}
               className="bg-white/70 border-slate-200 text-slate-800"
             />
           </div>

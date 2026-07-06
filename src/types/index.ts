@@ -219,6 +219,7 @@ export interface Habit {
   id: string;
   user_id: string;
   title: string;
+  description: string | null;
   habit_type: HabitTypeEnum;
   current_streak: number;
   best_streak: number;
@@ -242,12 +243,14 @@ export interface Habit {
 
 export interface HabitCreate {
   title: string;
+  description?: string | null;
   habit_type: HabitTypeEnum;
   reminder_time?: string | null;
 }
 
 export interface HabitUpdate {
   title?: string;
+  description?: string | null;
   habit_type?: HabitTypeEnum;
   reminder_time?: string | null;
 }

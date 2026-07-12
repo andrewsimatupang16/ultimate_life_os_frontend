@@ -20,6 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getApiErrorMessage } from '@/lib/api-error';
+import MicroBreakWidget from '@/components/MicroBreakWidget';
 
 const cardClass = 'border-slate-200 bg-[#F8FAFC]/85';
 const panelClass = 'rounded-xl border border-slate-200 bg-white/70 p-3';
@@ -485,6 +486,8 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       )}
+
+      <MicroBreakWidget onRewarded={loadDashboard} />
 
       <section className="grid grid-cols-1 gap-3 xl:grid-cols-[1fr_0.9fr]">
         <Card className={cardClass}>

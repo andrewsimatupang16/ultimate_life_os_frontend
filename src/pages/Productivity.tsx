@@ -6,12 +6,11 @@ import SubGoalsTab from './productivity/SubGoalsTab';
 import TasksTab from './productivity/TasksTab';
 import HabitsTab from './productivity/HabitsTab';
 import RewardsTab from './productivity/RewardsTab';
-import MicroTasksTab from './productivity/MicroTasksTab';
 
 export default function Productivity() {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get('tab');
-  const validTabs = ['goals', 'subgoals', 'tasks', 'habits', 'micro-tasks', 'rewards'];
+  const validTabs = ['goals', 'subgoals', 'tasks', 'habits', 'rewards'];
   const [activeTab, setActiveTab] = useState(validTabs.includes(requestedTab || '') ? requestedTab || 'goals' : 'goals');
 
   useEffect(() => {
@@ -42,7 +41,6 @@ export default function Productivity() {
           <TabsTrigger value="subgoals" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">Detail Goal</TabsTrigger>
           <TabsTrigger value="tasks" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">Task Hari Ini</TabsTrigger>
           <TabsTrigger value="habits" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">Habit</TabsTrigger>
-          <TabsTrigger value="micro-tasks" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">Micro Task</TabsTrigger>
           <TabsTrigger value="rewards" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">Reward</TabsTrigger>
         </TabsList>
 
@@ -50,7 +48,6 @@ export default function Productivity() {
         <TabsContent value="subgoals"><SubGoalsTab /></TabsContent>
         <TabsContent value="tasks"><TasksTab /></TabsContent>
         <TabsContent value="habits"><HabitsTab /></TabsContent>
-        <TabsContent value="micro-tasks"><MicroTasksTab /></TabsContent>
         <TabsContent value="rewards"><RewardsTab /></TabsContent>
       </Tabs>
     </div>

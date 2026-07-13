@@ -6,6 +6,7 @@ import { LanguageProvider } from '@/context/LanguageContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import Layout from '@/components/Layout';
 import AppTextTranslator from '@/components/AppTextTranslator';
+import ServerWarmupNotice from '@/components/ServerWarmupNotice';
 import { Toaster } from '@/components/ui/sonner';
 
 import LoadingState from '@/components/LoadingState';
@@ -33,6 +34,7 @@ function App() {
       <ThemeProvider>
         <AuthProvider>
           <AppTextTranslator />
+          <ServerWarmupNotice />
           <Suspense fallback={<PageFallback />}>
             <Routes>
             <Route path="/login" element={<Login />} />

@@ -31,8 +31,32 @@ function normalizeApiBaseUrl(): string {
   return '/api';
 }
 
-const API_URL = normalizeApiBaseUrl();
-const AUTH_STORAGE_KEYS = ['access_token', 'refresh_token'] as const;
+export const API_URL = normalizeApiBaseUrl();
+const AUTH_STORAGE_KEYS = ['access_token', 'refresh_token', 'auth_user'] as const;
+
+const DEFAULT_API_TIMEOUT_MS = 25_000;
+
+function getApiTimeoutMs(): number {
+  const rawValue = import.meta.env.VITE_API_TIMEOUT_MS;
+  const parsed = Number(rawValue);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_API_TIMEOUT_MS;
+}
+
+export function isTransientConnectionError(error: unknown): boolean {
+  if (!axios.isAxiosError(error)) {
+    return false;
+  }
+
+  if (error.code === 'ECONNABORTED' || error.code === 'ERR_NETWORK') {
+    return true;
+  }
+
+  if (!error.response) {
+    return true;
+  }
+
+  return error.response.status >= 500;
+}
 
 function clearAuthStorage() {
   AUTH_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
@@ -46,6 +70,7 @@ function redirectToLogin() {
 
 const api = axios.create({
   baseURL: API_URL,
+  timeout: getApiTimeoutMs(),
   headers: {
     'Content-Type': 'application/json',
   },
@@ -83,17 +108,22 @@ api.interceptors.response.use(
 
       if (refreshToken) {
         try {
-          const response = await axios.post(`${API_URL}/auth/refresh`, { refresh_token: refreshToken });
-          const { access_token, refresh_token } = response.data;
+          const response = await axios.post(`${API_URL}/auth/refresh`, { refresh_token: refreshToken }, { timeout: getApiTimeoutMs() });
+          const { access_token, refresh_token, user } = response.data;
           localStorage.setItem('access_token', access_token);
           if (refresh_token) {
             localStorage.setItem('refresh_token', refresh_token);
           }
+          if (user) {
+            localStorage.setItem('auth_user', JSON.stringify(user));
+          }
           originalRequest.headers.Authorization = `Bearer ${access_token}`;
           return api(originalRequest);
         } catch (refreshError) {
-          clearAuthStorage();
-          redirectToLogin();
+          if (!isTransientConnectionError(refreshError)) {
+            clearAuthStorage();
+            redirectToLogin();
+          }
           return Promise.reject(refreshError);
         }
       }
